@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 
-
 import numpy as np
 
 from .rte import RTEAPIClient
@@ -8,7 +7,7 @@ import yaml
 
 from os.path import join as opj
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 # TODO:
@@ -199,6 +198,7 @@ class CoalPower(PowerSource):
         return availability
 
 
+# should be forced to production at T-1
 class HydroPower(PowerSource):
     def __init__(self):
         super().__init__()
@@ -207,16 +207,62 @@ class HydroPower(PowerSource):
         start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
         end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
-        availability = [self.installed_capacity] * n_bins
 
-        units_unavailabilities = self.retrieve_unavailabilities(
-            "HYDRO_RUN_OF_RIVER_AND_POUNDAGE",
-            start,
-            end,
+        availability = np.zeros(n_bins)
+        data_points = np.zeros(n_bins)
+
+        past_start = datetime.strftime(
+            start_dtime
+            - timedelta(days=(end_dtime - start_dtime).total_seconds() / 86400),
+            "%Y-%m-%dT%H:%M:%S%z",
+        )
+        past_start = "{0}:{1}".format(past_start[:-2], past_start[-2:])
+        past_end = start
+
+        api = RTEAPIClient()
+        res = api.request(
+            f"http://digital.iservices.rte-france.com/open_api/actual_generation/v1/actual_generations_per_production_type?start_date={past_start}&end_date={past_end}",
         )
 
-        for unit in units_unavailabilities:
-            availability -= units_unavailabilities[unit]
+        data = res.json()
+
+        for production in data["actual_generations_per_production_type"]:
+            if production["production_type"] != "HYDRO_RUN_OF_RIVER_AND_POUNDAGE":
+                continue
+
+            t_begin = np.array(
+                [
+                    (
+                        datetime.strptime(v["start_date"], "%Y-%m-%dT%H:%M:%S%z")
+                        - start_dtime
+                    ).total_seconds()
+                    / 3600
+                    for v in production["values"]
+                ]
+            ).astype(int)
+
+            t_end = np.array(
+                [
+                    (
+                        datetime.strptime(v["end_date"], "%Y-%m-%dT%H:%M:%S%z")
+                        - start_dtime
+                    ).total_seconds()
+                    / 3600
+                    for v in production["values"]
+                ]
+            ).astype(int)
+
+            values = np.array([v["value"] for v in production["values"]])
+
+            for i in range(len(t_begin)):
+                availability[t_begin[i] : t_end[i]] += values[i]
+                data_points[t_begin[i] : t_end[i]] += 1
+
+        availability = availability / data_points
+
+        availability[np.isnan(availability)] = np.min(
+            availability[~np.isnan(availability)]
+        )
 
         return availability
 

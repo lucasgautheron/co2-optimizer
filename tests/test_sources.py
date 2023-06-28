@@ -24,6 +24,7 @@ def sources(request):
         "gas": GasPower(),
         "coal": CoalPower(),
         "hydro": HydroPower(),
+        "reservoir_hydro": ReservoirHydroPower(),
         "imports": ImportedPower()
     }
     yield sources

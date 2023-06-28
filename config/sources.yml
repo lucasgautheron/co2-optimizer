@@ -13,12 +13,12 @@ GasPower:
   color: "#BF486D"
 CoalPower:
   carbon_intensity: 954
-  marginal_cost: 200
+  marginal_cost: 250
   installed_capacity: 1820
   color: "#B89E55"
 BiomassPower:
   carbon_intensity: 230
-  marginal_cost: 200
+  marginal_cost: 100
   installed_capacity: 2230
   color: "green"
 NuclearPower:
@@ -38,7 +38,7 @@ ReservoirHydroPower:
   color: "#4585EE"
 StoredHydroPower:
   carbon_intensity: 67
-  marginal_cost: 200
+  marginal_cost: 250
   installed_capacity: 5064
 ImportedPower:
   carbon_intensity: 200
