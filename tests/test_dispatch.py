@@ -7,7 +7,9 @@ from optimizer.sources import (
     GasPower,
     CoalPower,
     HydroPower,
+    ReservoirHydroPower,
     StoredHydroPower,
+    ImportedPower
 )
 
 from optimizer.production import ProductionPrediction
@@ -25,6 +27,9 @@ def sources(request):
         "solar": SolarPower(),
         "nuclear": NuclearPower(),
         "gas": GasPower(),
+        "hydro": HydroPower(),
+        "reservoir_hydro": ReservoirHydroPower(),
+        "imports": ImportedPower(),
     }
     yield sources
 
@@ -33,7 +38,7 @@ def sources(request):
     "start,end",
     [
         # ("2020-01-01T00:00:00+01:00", "2020-01-02T00:00:00+01:00"),
-        ("2023-01-01T00:00:00+01:00", "2023-01-03T00:00:00+01:00"),
+        ("2023-06-01T00:00:00+01:00", "2023-06-03T00:00:00+01:00"),
     ],
 )
 def test_consumption(start, end):
@@ -56,7 +61,7 @@ def test_consumption(start, end):
     "start,end",
     [
         # ("2020-01-01T00:00:00+01:00", "2020-01-02T00:00:00+01:00"),
-        ("2023-01-01T00:00:00+01:00", "2023-01-03T00:00:00+01:00"),
+        ("2023-02-01T00:00:00+01:00", "2023-02-03T00:00:00+01:00"),
     ],
 )
 def test_consumption(sources, start, end):
@@ -82,10 +87,10 @@ def test_consumption(sources, start, end):
     total = np.zeros(interval_duration)
 
     n = 0
-    
+
     for source in sources:
-        color = sources[source]["color"]
-        ax.bar(t, production[n] + total, color=color, label=source)
+        color = sources[source].color
+        ax.bar(t, production[n], bottom=total, color=color, label=source, width=1.0)
         total += production[n]
 
         n += 1

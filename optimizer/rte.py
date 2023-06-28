@@ -12,7 +12,6 @@ class RTEAPIClient:
         credentials = f"{self.api_client}:{self.api_secret}"
         code = base64.b64encode(credentials.encode("ascii"))
         code = code.decode("ascii")
-        print(code)
 
         res = requests.post(
             f"https://digital.iservices.rte-france.com/token/oauth/",
@@ -23,7 +22,6 @@ class RTEAPIClient:
         )
 
         data = res.json()
-        print(data)
         self.access_token = data["access_token"]
 
     def request(self, url):

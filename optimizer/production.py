@@ -32,39 +32,39 @@ class ProductionPrediction:
         api = RTEAPIClient()
 
         res = api.request(
-            f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term?type=D-2&start_date={start}&end_date={end}",
+            f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term?start_date={start}&end_date={end}",
         )
 
         data = res.json()
-        forecast = data["short_term"][0]
 
-        t_begin = np.array(
-            [
-                (
-                    datetime.strptime(v["start_date"], "%Y-%m-%dT%H:%M:%S%z")
-                    - start_dtime
-                ).total_seconds()
-                / 3600
-                for v in forecast["values"]
-            ]
-        ).astype(int)
+        for forecast in data["short_term"]:
+            t_begin = np.array(
+                [
+                    (
+                        datetime.strptime(v["start_date"], "%Y-%m-%dT%H:%M:%S%z")
+                        - start_dtime
+                    ).total_seconds()
+                    / 3600
+                    for v in forecast["values"]
+                ]
+            ).astype(int)
 
-        t_end = np.array(
-            [
-                (
-                    datetime.strptime(v["end_date"], "%Y-%m-%dT%H:%M:%S%z")
-                    - start_dtime
-                ).total_seconds()
-                / 3600
-                for v in forecast["values"]
-            ]
-        ).astype(int)
+            t_end = np.array(
+                [
+                    (
+                        datetime.strptime(v["end_date"], "%Y-%m-%dT%H:%M:%S%z")
+                        - start_dtime
+                    ).total_seconds()
+                    / 3600
+                    for v in forecast["values"]
+                ]
+            ).astype(int)
 
-        values = np.array([v["value"] for v in forecast["values"]])
+            values = np.array([v["value"] for v in forecast["values"]])
 
-        for i in range(len(t_begin)):
-            consumption[t_begin[i] : t_end[i]] += values[i]
-            data_points[t_begin[i] : t_end[i]] += 1
+            for i in range(len(t_begin)):
+                consumption[t_begin[i] : t_end[i]] += values[i]
+                data_points[t_begin[i] : t_end[i]] += 1
 
         return consumption / data_points
 
@@ -83,7 +83,12 @@ class ProductionPrediction:
             [self.sources[i].marginal_cost for i in range(n_sources)]
         )
 
+        print(availability)
+        print(availability.sum(axis=0))
+        print(consumption)
+
         constraints = [
+            x >= 0,  # production must be positive
             x
             <= availability,  # production from each source cannot exceed availability at any time
             cp.sum(x, axis=0)
@@ -95,7 +100,7 @@ class ProductionPrediction:
             constraints,
         )
 
-        prob.solve()
+        prob.solve(solver="ECOS")
         production = x.value
 
         return production

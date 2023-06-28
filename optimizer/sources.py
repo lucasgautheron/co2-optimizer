@@ -53,7 +53,7 @@ class PowerSource(ABC):
         units = {}
 
         for unavailability in unvailabilities:
-            if unavailability["production_type"] != production_type:
+            if unavailability["production_type"] not in production_type:
                 continue
 
             unit = unavailability["unit"]["eic_code"]
@@ -78,28 +78,50 @@ class PowerSource(ABC):
 
     def prediction_forecast(self, production_type, start, end):
         start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        api = RTEAPIClient()
+        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
+        availability = np.zeros(n_bins)
+        data_points = np.zeros(n_bins)
+
+        api = RTEAPIClient()
         res = api.request(
-            f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&type=D-1&start_date={start}&end_date={end}",
+            f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&start_date={start}&end_date={end}",
         )
 
         data = res.json()
-        forecast = data["forecasts"][0]
 
-        t = np.array(
-            [
-                (
-                    datetime.strptime(v["start_date"], "%Y-%m-%dT%H:%M:%S%z")
-                    - start_dtime
-                ).total_seconds()
-                / 3600
-                for v in forecast["values"]
-            ]
-        )
+        for forecast in data["forecasts"]:
+            t_begin = np.array(
+                [
+                    (
+                        datetime.strptime(v["start_date"], "%Y-%m-%dT%H:%M:%S%z")
+                        - start_dtime
+                    ).total_seconds()
+                    / 3600
+                    for v in forecast["values"]
+                ]
+            ).astype(int)
 
-        availability = np.array([v["value"] for v in forecast["values"]])
-        return availability[np.argsort(t)]
+            t_end = np.array(
+                [
+                    (
+                        datetime.strptime(v["end_date"], "%Y-%m-%dT%H:%M:%S%z")
+                        - start_dtime
+                    ).total_seconds()
+                    / 3600
+                    for v in forecast["values"]
+                ]
+            ).astype(int)
+
+            values = np.array([v["value"] for v in forecast["values"]])
+
+            for i in range(len(t_begin)):
+                availability[t_begin[i] : t_end[i]] += values[i]
+                data_points[t_begin[i] : t_end[i]] += 1
+
+        availability /= data_points
+        return availability
 
 
 class WindPower(PowerSource):
@@ -182,21 +204,62 @@ class HydroPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        return super().get_availability(start, end)
+        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
+        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
+        availability = [self.installed_capacity] * n_bins
+
+        units_unavailabilities = self.retrieve_unavailabilities(
+            "HYDRO_RUN_OF_RIVER_AND_POUNDAGE",
+            start,
+            end,
+        )
+
+        for unit in units_unavailabilities:
+            availability -= units_unavailabilities[unit]
+
+        return availability
 
 
 # has opportunity costs due to storage
 class ReservoirHydroPower(PowerSource):
     def __init__(self):
-        super.__init__()
+        super().__init__()
 
     def get_availability(self, start, end):
-        return super().get_availability(start, end)
+        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
+        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
+        availability = [self.installed_capacity] * n_bins
+
+        units_unavailabilities = self.retrieve_unavailabilities(
+            "HYDRO_WATER_RESERVOIR",
+            start,
+            end,
+        )
+
+        for unit in units_unavailabilities:
+            availability -= units_unavailabilities[unit]
+
+        return availability
 
 
 class StoredHydroPower(PowerSource):
     def __init__(self):
-        super.__init__()
+        super().__init__()
 
     def get_availability(self, start, end):
         return super().get_availability(start, end)
+
+
+class ImportedPower(PowerSource):
+    def __init__(self):
+        super().__init__()
+
+    def get_availability(self, start, end):
+        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
+        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
+
+        availability = [self.installed_capacity] * n_bins
+        return availability
