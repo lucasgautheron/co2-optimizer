@@ -6,6 +6,7 @@ from optimizer.sources import (
     NuclearPower,
     GasPower,
     CoalPower,
+    BiomassPower,
     HydroPower,
     ReservoirHydroPower,
     StoredHydroPower,
@@ -28,6 +29,7 @@ def sources(request):
         "nuclear": NuclearPower(),
         "gas": GasPower(),
         "hydro": HydroPower(),
+        "biomass": BiomassPower(),
         "reservoir_hydro": ReservoirHydroPower(),
         "imports": ImportedPower(),
     }

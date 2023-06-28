@@ -198,6 +198,24 @@ class CoalPower(PowerSource):
         return availability
 
 
+class BiomassPower(PowerSource):
+    def __init__(self):
+        super().__init__()
+
+    def get_availability(self, start, end):
+        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
+        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
+        availability = [self.installed_capacity] * n_bins
+
+        units_unavailabilities = self.retrieve_unavailabilities("BIOMASS", start, end)
+
+        for unit in units_unavailabilities:
+            availability -= units_unavailabilities[unit]
+
+        return availability
+
+
 # should be forced to production at T-1
 class HydroPower(PowerSource):
     def __init__(self):

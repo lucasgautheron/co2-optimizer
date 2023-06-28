@@ -1,17 +1,6 @@
 import cvxpy as cp
 import numpy as np
 
-from .sources import (
-    WindPower,
-    SolarPower,
-    NuclearPower,
-    GasPower,
-    CoalPower,
-    HydroPower,
-    ReservoirHydroPower,
-    StoredHydroPower,
-)
-
 from .rte import RTEAPIClient
 
 from datetime import datetime
@@ -82,10 +71,6 @@ class ProductionPrediction:
         marginal_cost = np.array(
             [self.sources[i].marginal_cost for i in range(n_sources)]
         )
-
-        print(availability)
-        print(availability.sum(axis=0))
-        print(consumption)
 
         constraints = [
             x >= 0,  # production must be positive
