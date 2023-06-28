@@ -5,8 +5,15 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 
-start = "2022-12-01T00:00:00+01:00"
-end = "2022-12-03T00:00:00+01:00"
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--start")
+parser.add_argument("--end")
+args = parser.parse_args()
+
+start = f"{args.start}T00:00:00+01:00"
+end = f"{args.end}T00:00:00+01:00"
 
 optimizer = Optimizer()
 production = optimizer.prediction.dispatch(start, end)
@@ -73,5 +80,4 @@ axes[1].set_ylabel("Optimal command")
 fig.legend(bbox_to_anchor=(0.98, 0.9), loc="upper left")
 plt.subplots_adjust(wspace=0, hspace=0)
 fig.suptitle("Optimal command for 12h charge time")
-fig.savefig("output/all.png", bbox_inches="tight")
-fig.savefig("output/all.eps", bbox_inches="tight")
+fig.savefig(f"output/all_{args.start}_{args.end}.png", bbox_inches="tight")
