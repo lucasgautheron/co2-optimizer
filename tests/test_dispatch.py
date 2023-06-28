@@ -40,11 +40,11 @@ def sources(request):
     "start,end",
     [
         # ("2020-01-01T00:00:00+01:00", "2020-01-02T00:00:00+01:00"),
-        ("2023-06-01T00:00:00+01:00", "2023-06-03T00:00:00+01:00"),
+        ("2023-03-15T00:00:00+01:00", "2023-03-17T00:00:00+01:00"),
     ],
 )
+
 def test_consumption(start, end):
-    return
     start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
     end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
     interval_duration = int((end_dtime - start_dtime).total_seconds() / 3600)
@@ -57,6 +57,8 @@ def test_consumption(start, end):
     assert (
         len(consumption) == interval_duration
     ), "consumption must have as many bins as they are hours in the requested time-period"
+
+    assert np.all(consumption>0), "consumption is always > 0"
 
 
 @pytest.mark.parametrize(

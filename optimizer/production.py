@@ -63,14 +63,14 @@ class ProductionPrediction:
         n_bins = len(consumption)
         n_sources = len(self.sources)
 
-        x = cp.Variable((n_sources, n_bins))
-
         availability = np.array(
             [self.sources[i].get_availability(start, end) for i in range(n_sources)]
         )
         marginal_cost = np.array(
             [self.sources[i].marginal_cost for i in range(n_sources)]
         )
+
+        x = cp.Variable((n_sources, n_bins))
 
         constraints = [
             x >= 0,  # production must be positive
