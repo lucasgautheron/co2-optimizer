@@ -85,10 +85,6 @@ class ProductionPrediction:
             constraints,
         )
 
-        print(consumption)
-        print(availability.sum(axis=0))
-        print(availability)
-
         prob.solve()
         production = x.value
 

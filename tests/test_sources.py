@@ -9,11 +9,12 @@ from optimizer.sources import (
     HydroPower,
     StoredHydroPower,
     ReservoirHydroPower,
-    ImportedPower
+    ImportedPower,
 )
 
 from datetime import datetime
 import numpy as np
+
 
 @pytest.fixture(scope="function")
 def sources(request):
@@ -25,7 +26,7 @@ def sources(request):
         "coal": CoalPower(),
         "hydro": HydroPower(),
         "reservoir_hydro": ReservoirHydroPower(),
-        "imports": ImportedPower()
+        "imports": ImportedPower(),
     }
     yield sources
 
@@ -33,8 +34,7 @@ def sources(request):
 @pytest.mark.parametrize(
     "start,end",
     [
-        # ("2020-01-01T00:00:00+01:00", "2020-01-02T00:00:00+01:00"),
-        ("2023-03-02T00:00:00+01:00", "2023-03-04T00:00:00+01:00"),
+        ("2023-02-02T00:00:00+01:00", "2023-02-04T00:00:00+01:00"),
     ],
 )
 def test_availability(sources, start, end):

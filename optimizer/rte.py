@@ -11,7 +11,7 @@ from os.path import exists, join as opj
 
 
 class RTEAPIClient:
-    def __init__(self, fetch_cache: bool = True, debug: bool = True):
+    def __init__(self, fetch_cache: bool = True, debug: bool = False):
         self.fetch_cache = fetch_cache
         self.debug = debug
         self.access_token = None
@@ -58,7 +58,7 @@ class RTEAPIClient:
         if self.debug:
             print(f"request: {url}")
             print(f"status: {res.status_code}")
-            
+
             try:
                 print(res.json())
             except:
