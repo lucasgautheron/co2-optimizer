@@ -7,7 +7,8 @@ import yaml
 
 from os.path import join as opj
 
-from datetime import datetime, timedelta
+from .utils import str_to_datetime, datetime_to_str, now
+from datetime import timedelta
 
 
 # TODO:
@@ -38,8 +39,8 @@ class PowerSource(ABC):
         pass
 
     def retrieve_unavailabilities(self, production_type, start, end):
-        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
         api = RTEAPIClient()
@@ -61,8 +62,8 @@ class PowerSource(ABC):
                 units[unit] = np.zeros(n_bins)
 
             for v in unavailability["values"]:
-                unavail_start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-                unavail_end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+                unavail_start_dtime = str_to_datetime(start)
+                unavail_end_dtime = str_to_datetime(end)
 
                 t_begin = int(
                     (unavail_start_dtime - start_dtime).total_seconds() / 3600
@@ -75,28 +76,32 @@ class PowerSource(ABC):
 
         return units
 
-    def prediction_forecast(self, production_type, start, end):
-        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+    def prediction_forecast(self, production_type, start: str = None, end: str = None):
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
         availability = np.zeros(n_bins)
         data_points = np.zeros(n_bins)
 
         api = RTEAPIClient()
-        res = api.request(
-            f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&start_date={start}&end_date={end}",
-        )
+
+        future = end_dtime > now()
+        if future:
+            res = api.request(
+                f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}",
+            )
+        else:
+            res = api.request(
+                f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&start_date={start}&end_date={end}",
+            )
 
         data = res.json()
 
         for forecast in data["forecasts"]:
             t_begin = np.array(
                 [
-                    (
-                        datetime.strptime(v["start_date"], "%Y-%m-%dT%H:%M:%S%z")
-                        - start_dtime
-                    ).total_seconds()
+                    (str_to_datetime(v["start_date"]) - start_dtime).total_seconds()
                     / 3600
                     for v in forecast["values"]
                 ]
@@ -104,10 +109,7 @@ class PowerSource(ABC):
 
             t_end = np.array(
                 [
-                    (
-                        datetime.strptime(v["end_date"], "%Y-%m-%dT%H:%M:%S%z")
-                        - start_dtime
-                    ).total_seconds()
+                    (str_to_datetime(v["end_date"]) - start_dtime).total_seconds()
                     / 3600
                     for v in forecast["values"]
                 ]
@@ -120,6 +122,11 @@ class PowerSource(ABC):
                 data_points[t_begin[i] : t_end[i]] += 1
 
         availability /= data_points
+
+        availability[np.isnan(availability)] = np.min(
+            availability[~np.isnan(availability)]
+        )
+
         return availability
 
 
@@ -144,8 +151,8 @@ class NuclearPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
         availability = [self.installed_capacity] * n_bins
@@ -163,8 +170,8 @@ class GasPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
         availability = [self.installed_capacity] * n_bins
 
@@ -183,8 +190,8 @@ class CoalPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
         availability = [self.installed_capacity] * n_bins
 
@@ -203,8 +210,8 @@ class BiomassPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
         availability = [self.installed_capacity] * n_bins
 
@@ -222,19 +229,17 @@ class HydroPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
         availability = np.zeros(n_bins)
         data_points = np.zeros(n_bins)
 
-        past_start = datetime.strftime(
+        past_start = datetime_to_str(
             start_dtime
-            - timedelta(days=(end_dtime - start_dtime).total_seconds() / 86400),
-            "%Y-%m-%dT%H:%M:%S%z",
+            - timedelta(days=(end_dtime - start_dtime).total_seconds() / 86400)
         )
-        past_start = "{0}:{1}".format(past_start[:-2], past_start[-2:])
         past_end = start
 
         api = RTEAPIClient()
@@ -250,10 +255,7 @@ class HydroPower(PowerSource):
 
             t_begin = np.array(
                 [
-                    (
-                        datetime.strptime(v["start_date"], "%Y-%m-%dT%H:%M:%S%z")
-                        - start_dtime
-                    ).total_seconds()
+                    (str_to_datetime(v["start_date"]) - start_dtime).total_seconds()
                     / 3600
                     for v in production["values"]
                 ]
@@ -261,10 +263,7 @@ class HydroPower(PowerSource):
 
             t_end = np.array(
                 [
-                    (
-                        datetime.strptime(v["end_date"], "%Y-%m-%dT%H:%M:%S%z")
-                        - start_dtime
-                    ).total_seconds()
+                    (str_to_datetime(v["end_date"]) - start_dtime).total_seconds()
                     / 3600
                     for v in production["values"]
                 ]
@@ -291,8 +290,8 @@ class ReservoirHydroPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
         availability = [self.installed_capacity] * n_bins
 
@@ -321,8 +320,8 @@ class ImportedPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
         availability = [self.installed_capacity] * n_bins

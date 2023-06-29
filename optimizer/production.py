@@ -3,7 +3,7 @@ import numpy as np
 
 from .rte import RTEAPIClient
 
-from datetime import datetime
+from .utils import str_to_datetime, datetime_to_str, now
 
 
 class ProductionPrediction:
@@ -11,8 +11,8 @@ class ProductionPrediction:
         self.sources = sources
 
     def get_consumption(self, start, end):
-        start_dtime = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S%z")
-        end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
         consumption = np.zeros(n_bins)
@@ -20,19 +20,22 @@ class ProductionPrediction:
 
         api = RTEAPIClient()
 
-        res = api.request(
-            f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term?start_date={start}&end_date={end}",
-        )
+        future = end_dtime > now()
+        if future:
+            res = api.request(
+                f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term",
+            )
+        else:
+            res = api.request(
+                f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term?start_date={start}&end_date={end}",
+            )
 
         data = res.json()
 
         for forecast in data["short_term"]:
             t_begin = np.array(
                 [
-                    (
-                        datetime.strptime(v["start_date"], "%Y-%m-%dT%H:%M:%S%z")
-                        - start_dtime
-                    ).total_seconds()
+                    (str_to_datetime(v["start_date"]) - start_dtime).total_seconds()
                     / 3600
                     for v in forecast["values"]
                 ]
@@ -40,10 +43,7 @@ class ProductionPrediction:
 
             t_end = np.array(
                 [
-                    (
-                        datetime.strptime(v["end_date"], "%Y-%m-%dT%H:%M:%S%z")
-                        - start_dtime
-                    ).total_seconds()
+                    (str_to_datetime(v["end_date"]) - start_dtime).total_seconds()
                     / 3600
                     for v in forecast["values"]
                 ]
@@ -85,7 +85,11 @@ class ProductionPrediction:
             constraints,
         )
 
-        prob.solve(solver="ECOS")
+        print(consumption)
+        print(availability.sum(axis=0))
+        print(availability)
+
+        prob.solve()
         production = x.value
 
         return production

@@ -1,9 +1,9 @@
 from flask import Flask, request
 
 from optimizer.optimization import Optimizer
+from optimizer.utils import datetime_to_str
 
 from datetime import datetime, timedelta
-
 import pytz
 
 
@@ -34,20 +34,17 @@ def command():
     except:
         return "time has inappropriate format"
 
-    now = datetime.now(pytz.timezone("Europe/Paris")) - timedelta(days=3)
-
-    start = now.strftime("%Y-%m-%dT%H:%M:%S%z")
-    end = (now + timedelta(days=2)).strftime(
-        "%Y-%m-%dT%H:%M:%S%z"
+    now = datetime.now(pytz.timezone("Europe/Paris")).replace(
+        minute=0, second=0, microsecond=0
     )
 
-    start = "{0}:{1}".format(start[:-2], start[-2:])
-    end = "{0}:{1}".format(end[:-2], end[-2:])
+    start = datetime_to_str(now)
+    end = datetime_to_str(now + timedelta(days=2))
 
     optimizer = Optimizer()
     command = optimizer.optimize(time, max_time, start=start, end=end)
 
-    return command
+    return "".join(map(str, command.astype(int)))
 
 
 app.run()

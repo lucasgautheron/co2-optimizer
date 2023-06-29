@@ -11,8 +11,9 @@ from os.path import exists, join as opj
 
 
 class RTEAPIClient:
-    def __init__(self, fetch_cache: bool = True):
+    def __init__(self, fetch_cache: bool = True, debug: bool = True):
         self.fetch_cache = fetch_cache
+        self.debug = debug
         self.access_token = None
 
     def auth(self):
@@ -45,12 +46,22 @@ class RTEAPIClient:
 
         if self.access_token is None:
             self.auth()
-            
+
         res = requests.get(
             url, headers={"Authorization": f"Bearer {self.access_token}"}
         )
 
-        with open(cached_file, "wb") as fp:
-            pickle.dump(res, fp)
+        if res.status_code == 200:
+            with open(cached_file, "wb") as fp:
+                pickle.dump(res, fp)
+
+        if self.debug:
+            print(f"request: {url}")
+            print(f"status: {res.status_code}")
+            
+            try:
+                print(res.json())
+            except:
+                pass
 
         return res
