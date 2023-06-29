@@ -44,4 +44,4 @@ ImportedPower:
   carbon_intensity: 200
   marginal_cost: 1000
   installed_capacity: 10000
-  color: "gray"
+  color: "gray" 
