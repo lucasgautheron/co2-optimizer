@@ -70,6 +70,10 @@ class ProductionPrediction:
             [self.sources[i].marginal_cost for i in range(n_sources)]
         )
 
+        print(consumption)
+        print(availability.sum(axis=0))
+        print(availability)
+
         x = cp.Variable((n_sources, n_bins))
 
         constraints = [

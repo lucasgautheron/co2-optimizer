@@ -1,6 +1,9 @@
 from optimizer.optimization import Optimizer
 
-from datetime import datetime
+from datetime import datetime, timedelta
+import pytz
+from optimizer.utils import str_to_datetime, datetime_to_str
+
 import numpy as np
 
 from matplotlib import pyplot as plt
@@ -8,18 +11,34 @@ from matplotlib import pyplot as plt
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--start")
-parser.add_argument("--end")
+parser.add_argument("--start", default=None)
+parser.add_argument("--end", default=None)
 args = parser.parse_args()
 
-start = f"{args.start}T00:00:00+01:00"
-end = f"{args.end}T00:00:00+01:00"
+if args.start is None:
+    now = datetime.now(pytz.timezone("Europe/Paris")).replace(
+        minute=0, second=0, microsecond=0
+    )
+
+    start = datetime_to_str(now)
+    end = datetime_to_str(now + timedelta(days=2))
+else:
+    start = f"{args.start}T00:00:00+01:00"
+    end = f"{args.end}T00:00:00+01:00"
 
 optimizer = Optimizer()
 production = optimizer.prediction.dispatch(start, end)
 carbon_intensity = np.array([source.carbon_intensity for source in optimizer.sources])
 
 t = np.arange(production.shape[1])
+hours = [
+    (str_to_datetime(start).replace(tzinfo=None) + timedelta(hours=int(h))).strftime(
+        "%H:%M"
+    )
+    for h in np.arange(production.shape[1])
+]
+print(t)
+
 total = np.zeros(production.shape[1])
 
 fig, axes = plt.subplots(
@@ -77,7 +96,17 @@ for i, max_time in enumerate([12, 24, 48]):
     )
 
 axes[1].set_ylabel("Optimal command")
+axes[1].set_xticks(t[::4])
+axes[1].set_xticklabels([hours[i] for i in t[::4]], rotation=90)
+
 fig.legend(bbox_to_anchor=(0.98, 0.9), loc="upper left")
 plt.subplots_adjust(wspace=0, hspace=0)
 fig.suptitle("Optimal command for 12h charge time")
-fig.savefig(f"output/all_{args.start}_{args.end}.png", bbox_inches="tight")
+fig.savefig(
+    f"output/all_{start[:4+1+2+1+2]}_{end[:4+1+2+1+2]}.png",
+    bbox_inches="tight",
+)
+fig.savefig(
+    f"output/all_{start[:4+1+2+1+2]}_{end[:4+1+2+1+2]}.eps",
+    bbox_inches="tight",
+)
