@@ -10,6 +10,7 @@ int status = WL_IDLE_STATUS;
 WiFiClient client;
 char server[] = "192.168.0.1";
 bool awaiting_http_response = false;
+unsigned long last_request = 0;
 
 // LCD and buttons
 const int btnsPin  = A0;
@@ -92,22 +93,37 @@ void setup_wifi() {
   printWifiStatus();
 }
 
-void read_request() {
-/* -------------------------------------------------------------------------- */  
+void readCommand() {
+  for(uint8_t i = 0; i < sizeof(charge_command); ++i)
+    charge_command[i] = i;
+
   uint32_t received_data_num = 0;
+  bool body = false;
 
   while (client.available()) {
     char c = client.read();
     Serial.print(c);
-    charge_command[received_data_num] = c-48;
+
+    if (!body) {
+      if (c == '\n') {
+        body = true;
+      }
+      continue;
+    }
+    
+    charge_command[received_data_num] = c-'0';
 
     received_data_num++;
     if(received_data_num % sizeof(charge_command) == 0) { 
       break;
     }
   }
+  if (received_data_num>0) {
+    awaiting_http_response = false;
+    return;
+  }
 
-  if (received_data_num > 0) {
+  if (millis()-last_request>60L * 1000L) {
     awaiting_http_response = false;
   }
 }
@@ -119,10 +135,8 @@ void httpQueryCommand() {
   // This will free the socket on the NINA module
   client.stop();
 
-  // if there's a successful connection:
   if (client.connect(server, 80)) {
     Serial.println("connecting...");
-    // send the HTTP GET request:
     char get[64];
     sprintf(get, "GET /command/time=%d&max_time=&d HTTP/1.1", config_charge_time, config_max_time);
     client.println(get);
@@ -130,7 +144,8 @@ void httpQueryCommand() {
     client.println("User-Agent: ArduinoWiFi/1.1");
     client.println("Connection: close");
     client.println();
-    // note the time that the connection was made:
+
+    last_request = millis();
     awaiting_http_response = true;
   } else {
     // if you couldn't make a connection:
@@ -271,13 +286,15 @@ void updateLCD() {
       lcd.print(F("0h       48h"));
 
       lcd.setCursor(0, 1);
+      for (uint8_t i = 0; i < 12; ++i) {
+        val[i] = '0';
+      }
+
       for(uint8_t i = 0; i < sizeof(charge_command); ++i) {
         uint8_t offset = i/4;
         val[i] += charge_command[i]; 
       }
-      for (uint8_t i = 0; i < 12; ++i) {
-        val[i] += 48;
-      }
+      
       val[12] = 0;
       lcd.print(val);
       break;
@@ -330,7 +347,7 @@ void setup() {
 
 void loop() {
   if (awaiting_http_response) {
-    read_request();
+    readCommand();
   }
   updateChargeState();
   btnListener(getBtnPressed());
