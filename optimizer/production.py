@@ -53,6 +53,7 @@ class ProductionPrediction:
                 data_points[t_begin[i] : t_end[i]] += 1
 
         consumption = consumption / data_points
+        consumption[np.isnan(consumption)] = consumption[~np.isnan(consumption)].max()
         return consumption
 
     def dispatch(self, start, end):
