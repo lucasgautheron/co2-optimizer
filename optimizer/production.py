@@ -15,24 +15,21 @@ class ProductionPrediction:
         end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
+        start_rq = datetime_to_str(start_dtime.replace(hour=0, minute=0, second=0))
+
         consumption = np.zeros(n_bins)
         data_points = np.zeros(n_bins)
 
         api = RTEAPIClient()
-
-        future = end_dtime > now()
-        if future:
-            res = api.request(
-                f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term",
-            )
-        else:
-            res = api.request(
-                f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term?start_date={start}&end_date={end}",
-            )
+        res = api.request(
+            f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term?start_date={start_rq}&end_date={end}",
+        )
 
         data = res.json()
 
         for forecast in data["short_term"]:
+            print(forecast["type"], forecast["start_date"], forecast["end_date"])
+
             t_begin = np.array(
                 [
                     (str_to_datetime(v["start_date"]) - start_dtime).total_seconds()
@@ -55,7 +52,8 @@ class ProductionPrediction:
                 consumption[t_begin[i] : t_end[i]] += values[i]
                 data_points[t_begin[i] : t_end[i]] += 1
 
-        return consumption / data_points
+        consumption = consumption / data_points
+        return consumption
 
     def dispatch(self, start, end):
         consumption = self.get_consumption(start, end)
