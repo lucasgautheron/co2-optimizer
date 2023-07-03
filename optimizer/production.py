@@ -28,8 +28,6 @@ class ProductionPrediction:
         data = res.json()
 
         for forecast in data["short_term"]:
-            print(forecast["type"], forecast["start_date"], forecast["end_date"])
-
             t_begin = np.array(
                 [
                     (str_to_datetime(v["start_date"]) - start_dtime).total_seconds()
