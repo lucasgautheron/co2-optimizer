@@ -1,5 +1,16 @@
 #include <LiquidCrystal.h>
 
+#include "WiFiS3.h"
+
+char ssid[] = "SSID";        // your network SSID (name)
+char pass[] = "12345678";    // your network password (use for WPA, or use as key for WEP)
+int keyIndex = 0;            // your network key index number (needed only for WEP)
+
+int status = WL_IDLE_STATUS;
+WiFiClient client;
+char server[] = "192.168.0.1";
+bool awaiting_http_response = false;
+
 // LCD and buttons
 const int btnsPin  = A0;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);;
@@ -32,6 +43,100 @@ uint8_t config_force = 0;
 unsigned long charge_start_time = 0;
 uint8_t current_charge_hour = 0;
 uint8_t charge_command[48];
+
+void printWifiStatus() {
+/* -------------------------------------------------------------------------- */  
+  // print the SSID of the network you're attached to:
+  Serial.print("SSID: ");
+  Serial.println(WiFi.SSID());
+
+  // print your board's IP address:
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+
+  // print the received signal strength:
+  long rssi = WiFi.RSSI();
+  Serial.print("signal strength (RSSI):");
+  Serial.print(rssi);
+  Serial.println(" dBm");
+}
+
+void setup_wifi() {
+  Serial.begin(9600);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
+
+  // check for the WiFi module:
+  if (WiFi.status() == WL_NO_MODULE) {
+    Serial.println("Communication with WiFi module failed!");
+    while (true);
+  }
+
+  String fv = WiFi.firmwareVersion();
+  if (fv < WIFI_FIRMWARE_LATEST_VERSION) {
+    Serial.println("Please upgrade the firmware");
+  }
+
+  while (status != WL_CONNECTED) {
+    Serial.print("Attempting to connect to SSID: ");
+    Serial.println(ssid);
+    // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
+    status = WiFi.begin(ssid, pass);
+
+    // wait 10 seconds for connection:
+    //delay(10000);
+  }
+  // you're connected now, so print out the status:
+  printWifiStatus();
+}
+
+void read_request() {
+/* -------------------------------------------------------------------------- */  
+  uint32_t received_data_num = 0;
+
+  while (client.available()) {
+    char c = client.read();
+    Serial.print(c);
+    charge_command[received_data_num] = c-48;
+
+    received_data_num++;
+    if(received_data_num % sizeof(charge_command) == 0) { 
+      break;
+    }
+  }
+
+  if (received_data_num > 0) {
+    awaiting_http_response = false;
+  }
+}
+
+
+void httpQueryCommand() {
+/* -------------------------------------------------------------------------- */  
+  // close any connection before send a new request.
+  // This will free the socket on the NINA module
+  client.stop();
+
+  // if there's a successful connection:
+  if (client.connect(server, 80)) {
+    Serial.println("connecting...");
+    // send the HTTP GET request:
+    char get[64];
+    sprintf(get, "GET /command/time=%d&max_time=&d HTTP/1.1", config_charge_time, config_max_time);
+    client.println(get);
+    client.println("Host: 192.168.0.1");
+    client.println("User-Agent: ArduinoWiFi/1.1");
+    client.println("Connection: close");
+    client.println();
+    // note the time that the connection was made:
+    awaiting_http_response = true;
+  } else {
+    // if you couldn't make a connection:
+    Serial.println("connection failed");
+  }
+}
 
 bool updateChargeState() {
   // forced mode is on
@@ -96,7 +201,7 @@ void updateConfig(byte btnStatus) {
       else if (config_charge_time<0) {
         config_charge_time = 0;
       }
-
+      httpQueryCommand();
       charge_start_time = millis();
       break;
 
@@ -114,6 +219,7 @@ void updateConfig(byte btnStatus) {
       else if (config_charge_time<0) {
         config_max_time = 0;
       }
+      httpQueryCommand();
       break;
 
     case CONFIG_MENU_FORCED_CHARGE:
@@ -212,14 +318,20 @@ void setup_lcd() {
   lcd.begin(16, 2);
 }
 
+
+
 void setup() {
   for(uint8_t i = 0; i < sizeof(charge_command); ++i)
     charge_command[i] = i;
 
   setup_lcd();
+  setup_wifi();
 }
 
 void loop() {
+  if (awaiting_http_response) {
+    read_request();
+  }
   updateChargeState();
   btnListener(getBtnPressed());
   delay(100);
