@@ -7,7 +7,12 @@ import yaml
 
 from os.path import join as opj
 
-from .utils import str_to_datetime, datetime_to_str, now
+from .utils import (
+    interpolate_nan,
+    str_to_datetime,
+    datetime_to_str,
+    now,
+)
 from datetime import timedelta
 
 
@@ -122,10 +127,7 @@ class PowerSource(ABC):
                 data_points[t_begin[i] : t_end[i]] += 1
 
         availability /= data_points
-
-        availability[np.isnan(availability)] = np.min(
-            availability[~np.isnan(availability)]
-        )
+        availability = interpolate_nan(availability)
 
         return availability
 
@@ -276,10 +278,7 @@ class HydroPower(PowerSource):
                 data_points[t_begin[i] : t_end[i]] += 1
 
         availability = availability / data_points
-
-        availability[np.isnan(availability)] = np.min(
-            availability[~np.isnan(availability)]
-        )
+        availability = interpolate_nan(availability)
 
         return availability
 

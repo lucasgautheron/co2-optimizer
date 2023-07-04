@@ -15,6 +15,7 @@ unsigned long last_request = 0;
 // LCD and buttons
 const int btnsPin  = A0;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);;
+bool update_lcd = true;
 
 enum {
   BUTTON_NONE,
@@ -120,6 +121,7 @@ void readCommand() {
   }
   if (received_data_num>0) {
     awaiting_http_response = false;
+    update_lcd = true;
     return;
   }
 
@@ -299,6 +301,7 @@ void updateLCD() {
       lcd.print(val);
       break;
   }
+  update_lcd = false;
 }
 
 void btnListener(byte btnStatus) { 
@@ -307,7 +310,7 @@ void btnListener(byte btnStatus) {
       break;
     default:
       updateConfig(btnStatus);
-      updateLCD();
+      update_lcd = true;
   }
 }
 
@@ -349,7 +352,14 @@ void loop() {
   if (awaiting_http_response) {
     readCommand();
   }
+
   updateChargeState();
+  
   btnListener(getBtnPressed());
+
+  if (update_lcd) {
+    updateLCD();
+  }
+
   delay(100);
 }

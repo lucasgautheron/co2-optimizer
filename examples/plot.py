@@ -37,7 +37,6 @@ hours = [
     )
     for h in np.arange(production.shape[1])
 ]
-print(t)
 
 total = np.zeros(production.shape[1])
 

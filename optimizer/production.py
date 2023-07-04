@@ -3,7 +3,7 @@ import numpy as np
 
 from .rte import RTEAPIClient
 
-from .utils import str_to_datetime, datetime_to_str, now
+from .utils import str_to_datetime, datetime_to_str, now, interpolate_nan
 
 
 class ProductionPrediction:
@@ -51,7 +51,7 @@ class ProductionPrediction:
                 data_points[t_begin[i] : t_end[i]] += 1
 
         consumption = consumption / data_points
-        consumption[np.isnan(consumption)] = consumption[~np.isnan(consumption)].max()
+        consumption = interpolate_nan(consumption)
         return consumption
 
     def dispatch(self, start, end):
