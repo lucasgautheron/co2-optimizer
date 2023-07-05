@@ -1,5 +1,5 @@
 .DS_Store
-arduino/secrets.h
+secrets.h
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
