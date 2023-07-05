@@ -1,9 +1,8 @@
 #include <LiquidCrystal.h>
 
 #include "WiFiS3.h"
+#include "secrets.h"
 
-char ssid[] = "gautheron";   // your network SSID (name)
-char pass[] = "12345678";    // your network password (use for WPA, or use as key for WEP)
 int keyIndex = 0;            // your network key index number (needed only for WEP)
 
 int status = WL_IDLE_STATUS;
@@ -200,7 +199,7 @@ void updateChargeState() {
   if (current_hour > current_charge_hour) {
     current_charge_hour = current_hour;
     update_lcd = true;
-    
+
     // if we have been charging, decrease remaning charge time
     if (charge_command[current_charge_hour] > 0) {
 
