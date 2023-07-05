@@ -81,7 +81,26 @@ class PowerSource(ABC):
 
         return units
 
-    def prediction_forecast(self, production_type, start: str = None, end: str = None):
+    def prediction_forecast(
+        self,
+        production_type: str,
+        start: str = None,
+        end: str = None,
+        interp_offset: int = -1,
+    ):
+        """recover RTE prediction forecast
+
+        :param production_type: Production type (e.g.: SOLAR, WIND, ...)
+        :type production_type: str
+        :param start: start time, defaults to None
+        :type start: str, optional
+        :param end: end time, defaults to None
+        :type end: str, optional
+        :param interp: interpolation offset, defaults to -1
+        :type interp: int, optional
+        :return: prediction forecast for each hour between start and end.
+        :rtype: np.ndarray
+        """
         start_dtime = str_to_datetime(start)
         end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
@@ -98,7 +117,7 @@ class PowerSource(ABC):
             )
         else:
             res = api.request(
-                f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&start_date={start}&end_date={end}",
+                f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&start_date={start_rq}&end_date={end}",
             )
 
         data = res.json()
@@ -127,7 +146,9 @@ class PowerSource(ABC):
                 data_points[t_begin[i] : t_end[i]] += 1
 
         availability /= data_points
-        availability = interpolate_nan(availability)
+        for i in range(len(availability)):
+            if np.isnan(availability[i]):
+                availability[i] = availability[i + interp_offset]
 
         return availability
 
@@ -145,7 +166,7 @@ class SolarPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        return self.prediction_forecast("SOLAR", start, end)
+        return self.prediction_forecast("SOLAR", start, end, interp_offset=-24)
 
 
 class NuclearPower(PowerSource):

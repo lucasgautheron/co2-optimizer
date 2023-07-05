@@ -4,6 +4,7 @@ import numpy as np
 from .rte import RTEAPIClient
 
 from .utils import str_to_datetime, datetime_to_str, now, interpolate_nan
+from datetime import timedelta
 
 
 class ProductionPrediction:
@@ -16,13 +17,16 @@ class ProductionPrediction:
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
         start_rq = datetime_to_str(start_dtime.replace(hour=0, minute=0, second=0))
+        end_rq = datetime_to_str(
+            (end_dtime + timedelta(days=1)).replace(hour=0, minute=0, second=0)
+        )
 
         consumption = np.zeros(n_bins)
         data_points = np.zeros(n_bins)
 
         api = RTEAPIClient()
         res = api.request(
-            f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term?start_date={start_rq}&end_date={end}",
+            f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term?start_date={start_rq}&end_date={end_rq}",
         )
 
         data = res.json()
