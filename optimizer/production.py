@@ -6,6 +6,126 @@ from .rte import RTEAPIClient
 from .utils import str_to_datetime, datetime_to_str, now, interpolate_nan
 from datetime import timedelta
 
+import pandas as pd
+
+
+class History:
+    def __init__(self):
+        self.api = RTEAPIClient()
+
+    def retrieve_production(self, start, end) -> pd.DataFrame:
+        start_dt = str_to_datetime(start)
+        end_dt = str_to_datetime(end)
+
+        periods = pd.date_range(start=start_dt, end=end_dt, freq="3M")
+        periods = zip(periods[:-1], periods[1:])
+
+        stats = []
+
+        for t0, t1 in periods:
+            start_rq = datetime_to_str(t0)
+            end_rq = datetime_to_str(t1)
+
+            res = self.api.request(
+                f"http://digital.iservices.rte-france.com/open_api/actual_generation/v1/actual_generations_per_production_type?start_date={start_rq}&end_date={end_rq}",
+            )
+
+            data = res.json()["actual_generations_per_production_type"]
+
+            for row in data:
+                production_type = row["production_type"]
+                for v in row["values"]:
+                    stats.append(
+                        {
+                            "production_type": production_type,
+                            "start_date": v["start_date"],
+                            "end_date": v["end_date"],
+                            "value": v["value"],
+                        }
+                    )
+
+        return pd.DataFrame(stats)
+
+    def retrieve_unavailability(self, start, end) -> pd.DataFrame:
+        start_dt = str_to_datetime(start)
+        end_dt = str_to_datetime(end)
+        n_bins = int((end_dt - start_dt).total_seconds() / 3600)
+        bins = pd.date_range(start=start_dt, end=end_dt, freq="1h")[:-1]
+
+        assert n_bins == len(bins)
+
+        periods = pd.date_range(start=start_dt, end=end_dt, freq="2W")
+        periods = zip(periods[:-1], periods[1:])
+
+        units = {}
+        unit_production_type = {}
+
+        for t0, t1 in periods:
+            start_rq = datetime_to_str(t0)
+            end_rq = datetime_to_str(t1)
+
+            url = f"http://digital.iservices.rte-france.com/open_api/unavailability_additional_information/v4/generation_unavailabilities?date_type=APPLICATION_DATE&start_date={start_rq}&end_date={end_rq}&last_version=true"
+
+            api = RTEAPIClient()
+            res = api.request(url)
+
+            try:
+                data = res.json()
+            except:
+                print(f"request failed: {url}")
+                print(res.content)
+                continue
+
+            try:
+                unvailabilities = data["generation_unavailabilities"]
+            except:
+                print("empty response:")
+                print(data)
+                continue
+
+            for unavailability in unvailabilities:
+                if unavailability["status"] == "DISMISSED":
+                    continue
+
+                unit = unavailability["unit"]["eic_code"]
+
+                if unit not in units:
+                    units[unit] = np.zeros(n_bins)
+
+                unit_production_type[unit] = unavailability["production_type"]
+
+                for v in unavailability["values"]:
+                    unavail_start_dtime = str_to_datetime(v["start_date"])
+                    unavail_end_dtime = str_to_datetime(v["end_date"])
+
+                    t_begin = int(
+                        (unavail_start_dtime - start_dt).total_seconds() / 3600
+                    )
+                    t_end = int((unavail_end_dtime - start_dt).total_seconds() / 3600)
+
+                    units[unit][t_begin:t_end] = np.maximum(
+                        units[unit][t_begin:t_end], v["unavailable_capacity"]
+                    )
+
+        units = pd.concat(
+            [
+                pd.DataFrame(
+                    {
+                        "unit": [unit] * n_bins,
+                        "production_type": [unit_production_type[unit]] * n_bins,
+                        "t": bins,
+                        "unavailability": units[unit],
+                    }
+                )
+                for unit in units
+            ]
+        )
+
+        unavailability = units.groupby(["production_type", "t"]).agg(
+            unavailability=("unavailability", "sum")
+        )
+        return unavailability
+
 
 class ProductionPrediction:
     def __init__(self, sources: list):

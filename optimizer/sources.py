@@ -67,8 +67,8 @@ class PowerSource(ABC):
                 units[unit] = np.zeros(n_bins)
 
             for v in unavailability["values"]:
-                unavail_start_dtime = str_to_datetime(start)
-                unavail_end_dtime = str_to_datetime(end)
+                unavail_start_dtime = str_to_datetime(v["start_date"])
+                unavail_end_dtime = str_to_datetime(v["end_date"])
 
                 t_begin = int(
                     (unavail_start_dtime - start_dtime).total_seconds() / 3600
@@ -150,7 +150,7 @@ class PowerSource(ABC):
             if np.isnan(availability[i]):
                 availability[i] = availability[i + interp_offset]
 
-        return availability
+        return interpolate_nan(availability)
 
 
 class WindPower(PowerSource):
