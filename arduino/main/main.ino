@@ -196,19 +196,23 @@ void updateChargeState() {
 
   uint8_t current_hour = (millis()-charge_start_time)/HOUR;
 
-  // an hour of charge has just elasped
+  // an hour has just elasped
   if (current_hour > current_charge_hour) {
     current_charge_hour = current_hour;
+    update_lcd = true;
+    
+    // if we have been charging, decrease remaning charge time
+    if (charge_command[current_charge_hour] > 0) {
 
-    if (config_charge_time == 1) {
-      config_charge_time = 0;
-      charge_state = CHARGE_DONE;
-      return;
-    }
-    else {
-      config_charge_time--;
-      config_max_time--;
-      update_lcd = true;
+      if (config_charge_time == 1) {
+        config_charge_time = 0;
+        charge_state = CHARGE_DONE;
+        return;
+      }
+      else {
+        config_charge_time--;
+        config_max_time--;
+      }
     }
   }
   
