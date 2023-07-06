@@ -13,6 +13,37 @@ class History:
     def __init__(self):
         self.api = RTEAPIClient()
 
+    def retrieve_consumption(self, start, end) -> pd.DataFrame:
+        start_dt = str_to_datetime(start)
+        end_dt = str_to_datetime(end)
+
+        periods = pd.date_range(start=start_dt, end=end_dt, freq="1W")
+        periods = zip(periods[:-1], periods[1:])
+
+        stats = []
+
+        for t0, t1 in periods:
+            start_rq = datetime_to_str(t0)
+            end_rq = datetime_to_str(t1)
+
+            res = self.api.request(
+                f"http://digital.iservices.rte-france.com/open_api/consumption/v1/short_term?start_date={start_rq}&end_date={end_rq}",
+            )
+
+            data = res.json()["short_term"]
+
+            for row in data:
+                for v in row["values"]:
+                    stats.append(
+                        {
+                            "start_date": v["start_date"],
+                            "end_date": v["end_date"],
+                            "value": v["value"],
+                        }
+                    )
+
+        return pd.DataFrame(stats).sort_values("start_date")
+
     def retrieve_production(self, start, end) -> pd.DataFrame:
         start_dt = str_to_datetime(start)
         end_dt = str_to_datetime(end)
@@ -44,7 +75,7 @@ class History:
                         }
                     )
 
-        return pd.DataFrame(stats)
+        return pd.DataFrame(stats).sort_values(["production_type", "start_date"])
 
     def retrieve_unavailability(self, start, end) -> pd.DataFrame:
         start_dt = str_to_datetime(start)
@@ -125,6 +156,50 @@ class History:
             unavailability=("unavailability", "sum")
         )
         return unavailability
+
+    def retrieve_imports(self, start, end) -> pd.DataFrame:
+        start_dt = str_to_datetime(start)
+        end_dt = str_to_datetime(end)
+
+        periods = pd.date_range(start=start_dt, end=end_dt, freq="2W")
+        periods = zip(periods[:-1], periods[1:])
+
+        stats = []
+
+        for t0, t1 in periods:
+            start_rq = datetime_to_str(t0)
+            end_rq = datetime_to_str(t1)
+
+            url = f"http://digital.iservices.rte-france.com/open_api/physical_flow/v1/physical_flows?start_date={start_rq}&end_date={end_rq}"
+
+            res = self.api.request(url)
+
+            try:
+                data = res.json()
+            except:
+                print(f"request failed: {url}")
+                print(res.status_code)
+                print(res.content)
+                continue
+
+            data = res.json()["physical_flows"]
+
+            for row in data:
+                sender = row["sender_country_name"]
+                receiver = row["receiver_country_name"]
+
+                for v in row["values"]:
+                    stats.append(
+                        {
+                            "sender": sender,
+                            "receiver": receiver,
+                            "start_date": v["start_date"],
+                            "end_date": v["end_date"],
+                            "value": v["value"],
+                        }
+                    )
+
+        return pd.DataFrame(stats).sort_values(["sender", "receiver", "start_date"])
 
 
 class ProductionPrediction:
