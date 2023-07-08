@@ -7,7 +7,7 @@ int keyIndex = 0;            // your network key index number (needed only for W
 
 int status = WL_IDLE_STATUS;
 WiFiClient client;
-char server[] = "15.237.56.158";
+char server[] = "52.47.174.250";
 bool awaiting_http_response = false;
 unsigned long last_request = 0;
 
@@ -15,6 +15,8 @@ unsigned long last_request = 0;
 const int btnsPin  = A0;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);;
 bool update_lcd = true;
+unsigned long last_lcd_update = 0;
+bool sleep_mode = false;
 
 enum {
   BUTTON_NONE,
@@ -55,24 +57,6 @@ uint8_t charge_command[48];
 uint8_t charge_state = CHARGE_INACTIVE;
 uint8_t prev_charge_state = CHARGE_INACTIVE;
 
-void printWifiStatus() {
-/* -------------------------------------------------------------------------- */  
-  // print the SSID of the network you're attached to:
-  Serial.print("SSID: ");
-  Serial.println(WiFi.SSID());
-
-  // print your board's IP address:
-  IPAddress ip = WiFi.localIP();
-  Serial.print("IP Address: ");
-  Serial.println(ip);
-
-  // print the received signal strength:
-  long rssi = WiFi.RSSI();
-  Serial.print("signal strength (RSSI):");
-  Serial.print(rssi);
-  Serial.println(" dBm");
-}
-
 void setup_wifi() {
   Serial.begin(9600);
   while (!Serial) {
@@ -105,8 +89,6 @@ void setup_wifi() {
     //delay(10000);
   }
 
-  // you're connected now, so print out the status:
-  printWifiStatus();
 }
 
 void readCommand() {
@@ -165,9 +147,14 @@ void httpQueryCommand() {
   if (client.connect(server, 80)) {
     Serial.println("connecting...");
     char get[64];
-    sprintf(get, "GET /command/?time=%d&max_time=%d HTTP/1.1", config_charge_time, config_max_time);
+    sprintf(
+      get,
+      "GET /command/?time=%d&max_time=%d HTTP/1.1",
+      config_charge_time,
+      max(config_max_time,config_charge_time)
+    );
     client.println(get);
-    client.println("Host: 15.237.56.158");
+    client.println("Host: 52.47.174.250");
     client.println("User-Agent: ArduinoWiFi/1.1");
     client.println("Connection: close");
     client.println();
@@ -193,16 +180,16 @@ void updateChargeState() {
     return;
   }
 
-  uint8_t current_hour = (millis()-charge_start_time)/HOUR;
+  uint8_t starting_hour = (millis()-charge_start_time)/HOUR;
+  bool was_charging = charge_command[current_charge_hour] > 0;
 
   // an hour has just elasped
-  if (current_hour > current_charge_hour) {
-    current_charge_hour = current_hour;
+  if (starting_hour > current_charge_hour) {
+    current_charge_hour = starting_hour;
     update_lcd = true;
 
     // if we have been charging, decrease remaning charge time
-    if (charge_command[current_charge_hour] > 0) {
-
+    if (was_charging) {
       if (config_charge_time == 1) {
         config_charge_time = 0;
         charge_state = CHARGE_DONE;
@@ -215,12 +202,12 @@ void updateChargeState() {
     }
   }
   
-  if (current_hour>48) {
+  if (starting_hour>48) {
     charge_state = CHARGE_DONE;
     return;
   }
 
-  if(charge_command[current_hour] == 0) {
+  if(charge_command[starting_hour] == 0) {
     charge_state = CHARGE_PENDING;
   }
   else {
@@ -250,10 +237,10 @@ void updateConfig(byte btnStatus) {
   // update configuration
   switch (current_config_menu) {
     case CONFIG_MENU_CHARGE_TIME:
-      if (btnStatus == BUTTON_UP) {
+      if (btnStatus == BUTTON_UP && config_charge_time < 48) {
         config_charge_time++;
       }
-      else if (btnStatus == BUTTON_DOWN) {
+      else if (btnStatus == BUTTON_DOWN && config_charge_time > 0) {
         config_charge_time--;
       }
       else if(btnStatus == BUTTON_SELECT) {
@@ -261,33 +248,19 @@ void updateConfig(byte btnStatus) {
         charge_start_time = millis();
         current_charge_hour = 0;
       }
-
-      if (config_charge_time > 48) {
-        config_charge_time = 48;
-      }
-      else if (config_charge_time<0) {
-        config_charge_time = 0;
-      }
       break;
 
     case CONFIG_MENU_MAX_TIME:
-      if (btnStatus == BUTTON_UP) {
+      if (btnStatus == BUTTON_UP && config_max_time < 48) {
         config_max_time++;
       }
-      else if (btnStatus == BUTTON_DOWN) {
+      else if (btnStatus == BUTTON_DOWN && config_max_time > 0) {
         config_max_time--;
       }
       else if(btnStatus == BUTTON_SELECT) {
         httpQueryCommand();
         charge_start_time = millis();
         current_charge_hour = 0;
-      }
-
-      if (config_charge_time > 48) {
-        config_max_time = 48;
-      }
-      else if (config_charge_time<0) {
-        config_max_time = 0;
       }
       break;
 
@@ -384,6 +357,7 @@ void updateLCD() {
       break;
   }
   update_lcd = false;
+  last_lcd_update = millis();
 }
 
 void btnListener(byte btnStatus) { 
@@ -392,6 +366,10 @@ void btnListener(byte btnStatus) {
       break;
     default:
       updateConfig(btnStatus);
+      if (sleep_mode) {
+        sleep_mode = false;
+        lcd.display();        
+      }
       update_lcd = true;
   }
 }
@@ -448,6 +426,12 @@ void loop() {
 
   if (update_lcd) {
     updateLCD();
+  }
+  if (millis() - last_lcd_update >= 30000L) {
+    if(!sleep_mode) {
+      sleep_mode = true;
+      lcd.noDisplay();
+    }
   }
 
   delay(100);
