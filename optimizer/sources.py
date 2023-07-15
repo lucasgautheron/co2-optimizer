@@ -8,7 +8,7 @@ import yaml
 from os.path import join as opj
 
 from .utils import (
-    interpolate_nan,
+    interp,
     str_to_datetime,
     datetime_to_str,
     now,
@@ -86,7 +86,7 @@ class PowerSource(ABC):
         production_type: str,
         start: str = None,
         end: str = None,
-        interp_offset: int = -1,
+        interpolation: int = -1,
     ):
         """recover RTE prediction forecast
 
@@ -146,11 +146,16 @@ class PowerSource(ABC):
                 data_points[t_begin[i] : t_end[i]] += 1
 
         availability /= data_points
-        for i in range(len(availability)):
-            if np.isnan(availability[i]):
-                availability[i] = availability[i + interp_offset]
 
-        return interpolate_nan(availability)
+        if isinstance(interpolation, int):
+            for i in range(len(availability)):
+                if np.isnan(availability[i]):
+                    availability[i] = availability[i + interpolation]
+
+        availability = interp(
+            availability, kind="linear"
+        )
+        return availability
 
 
 class WindPower(PowerSource):
@@ -158,7 +163,7 @@ class WindPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        return self.prediction_forecast("WIND", start, end)
+        return self.prediction_forecast("WIND", start, end, interpolation="linear")
 
 
 class SolarPower(PowerSource):
@@ -166,7 +171,7 @@ class SolarPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        return self.prediction_forecast("SOLAR", start, end, interp_offset=-24)
+        return self.prediction_forecast("SOLAR", start, end, interpolation=-24)
 
 
 class NuclearPower(PowerSource):
@@ -299,7 +304,7 @@ class HydroPower(PowerSource):
                 data_points[t_begin[i] : t_end[i]] += 1
 
         availability = availability / data_points
-        availability = interpolate_nan(availability)
+        availability = interp(availability, kind="nearest")
 
         return availability
 

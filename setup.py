@@ -4,7 +4,7 @@ import os
 
 requires = {
     "core": ["PyYAML"],
-    "math": ["numpy", "cvxpy"]
+    "math": ["numpy", "cvxpy", "scipy"]
 }
 
 setup(

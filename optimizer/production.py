@@ -3,7 +3,7 @@ import numpy as np
 
 from .rte import RTEAPIClient
 
-from .utils import str_to_datetime, datetime_to_str, now, interpolate_nan
+from .utils import str_to_datetime, datetime_to_str, now, interp
 from datetime import timedelta
 
 import pandas as pd
@@ -250,7 +250,7 @@ class ProductionPrediction:
                 data_points[t_begin[i] : t_end[i]] += 1
 
         consumption = consumption / data_points
-        consumption = interpolate_nan(consumption)
+        consumption = interp(consumption, kind="nearest")
         return consumption
 
     def dispatch(self, start, end):
