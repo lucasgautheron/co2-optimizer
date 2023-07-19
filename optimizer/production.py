@@ -2,6 +2,7 @@ import cvxpy as cp
 import numpy as np
 
 from .rte import RTEAPIClient
+from .electricitymaps import EMAPIClient
 
 from .utils import str_to_datetime, datetime_to_str, now, interp
 from datetime import timedelta
@@ -200,6 +201,29 @@ class History:
                     )
 
         return pd.DataFrame(stats).sort_values(["sender", "receiver", "start_date"])
+
+    def retrieve_carbon_intensity(self):
+        from datetime import datetime
+
+        api = EMAPIClient()
+        res = api.request("carbon-intensity/history?zone=FR")
+
+        data = res.json()
+
+        print(data)
+
+        history = pd.DataFrame(data["history"])
+
+        print(history)
+
+        start = datetime.strptime(
+            history["datetime"].min()[:19], "%Y-%m-%dT%H:%M:%S"
+        ).strftime("%Y-%m-%d_%H-%M")
+        end = datetime.strptime(
+            history["datetime"].max()[:19], "%Y-%m-%dT%H:%M:%S"
+        ).strftime("%Y-%m-%d_%H-%M")
+
+        history.to_csv(f"data/carbon-history/{start}_{end}.csv")
 
 
 class ProductionPrediction:

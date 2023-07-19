@@ -105,6 +105,9 @@ class PowerSource(ABC):
         end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
+        start_hour = start_dtime.replace(minute=0, second=0)
+        start_rq = datetime_to_str(start_hour)
+
         availability = np.zeros(n_bins)
         data_points = np.zeros(n_bins)
 
@@ -114,6 +117,7 @@ class PowerSource(ABC):
         if future:
             res = api.request(
                 f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}",
+                cache_expiration=datetime_to_str(start_hour + timedelta(hours=1)),
             )
         else:
             res = api.request(
@@ -152,9 +156,7 @@ class PowerSource(ABC):
                 if np.isnan(availability[i]):
                     availability[i] = availability[i + interpolation]
 
-        availability = interp(
-            availability, kind="linear"
-        )
+        availability = interp(availability, kind="linear")
         return availability
 
 
