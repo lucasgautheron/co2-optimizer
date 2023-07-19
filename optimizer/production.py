@@ -205,8 +205,13 @@ class History:
     def retrieve_carbon_intensity(self):
         from datetime import datetime
 
+        expiration = now().replace(minute=0, second=0) + timedelta(days=1)
+
         api = EMAPIClient()
-        res = api.request("carbon-intensity/history?zone=FR")
+        res = api.request(
+            "carbon-intensity/history?zone=FR",
+            cache_expiration=datetime_to_str(expiration),
+        )
 
         data = res.json()
 

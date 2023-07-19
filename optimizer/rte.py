@@ -8,7 +8,7 @@ import pickle
 
 import hashlib
 
-from .utils import datetime_to_str, str_to_datetime, now
+from .utils import str_to_datetime, now
 from os.path import exists, join as opj
 
 
