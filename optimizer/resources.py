@@ -108,7 +108,7 @@ class RTEAPI(Resource):
         return res
 
 
-class EMAPI(Resource):
+class ElectricityMapsAPI(Resource):
     def __init__(self, base_url=None, fetch_cache: bool = True, debug: bool = False):
         self.fetch_cache = fetch_cache
         self.debug = debug

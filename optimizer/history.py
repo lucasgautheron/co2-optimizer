@@ -1,7 +1,7 @@
 import cvxpy as cp
 import numpy as np
 
-from .resources import RTEAPI, EMAPI
+from .resources import RTEAPI, ElectricityMapsAPI
 
 from .utils import str_to_datetime, datetime_to_str, now, interp
 from datetime import timedelta
@@ -206,7 +206,7 @@ class History:
 
         expiration = now().replace(minute=0, second=0) + timedelta(days=1)
 
-        api = EMAPI()
+        api = ElectricityMapsAPI()
         res = api.request(
             "carbon-intensity/history?zone=FR",
             cache_expiration=datetime_to_str(expiration),
@@ -228,4 +228,3 @@ class History:
         ).strftime("%Y-%m-%d_%H-%M")
 
         history.to_csv(f"data/carbon-history/{start}_{end}.csv")
-
