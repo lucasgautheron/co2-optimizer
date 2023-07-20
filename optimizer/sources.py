@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from .rte import RTEAPIClient
+from .resources import RTEAPI
 import yaml
 
 from os.path import join as opj
@@ -48,7 +48,7 @@ class PowerSource(ABC):
         end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
-        api = RTEAPIClient()
+        api = RTEAPI()
         res = api.request(
             f"http://digital.iservices.rte-france.com/open_api/unavailability_additional_information/v4/generation_unavailabilities?status=ACTIVE&date_type=APPLICATION_DATE&start_date={start}&end_date={end}&last_version=true",
         )
@@ -111,7 +111,7 @@ class PowerSource(ABC):
         availability = np.zeros(n_bins)
         data_points = np.zeros(n_bins)
 
-        api = RTEAPIClient()
+        api = RTEAPI()
 
         future = end_dtime > now()
         if future:
@@ -272,7 +272,7 @@ class HydroPower(PowerSource):
         )
         past_end = start
 
-        api = RTEAPIClient()
+        api = RTEAPI()
         res = api.request(
             f"http://digital.iservices.rte-france.com/open_api/actual_generation/v1/actual_generations_per_production_type?start_date={past_start}&end_date={past_end}",
         )

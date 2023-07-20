@@ -1,4 +1,4 @@
-from optimizer.production import History
+from optimizer.history import History
 
 from datetime import datetime, timedelta
 import pytz
@@ -34,16 +34,16 @@ hist = History()
 
 if args.production:
     production = hist.retrieve_production(start, end)
-    production.to_csv("output/production_history.csv")
+    production.to_csv("data/production_history.csv")
 
 if args.consumption:
     consumption = hist.retrieve_consumption(start, end)
-    consumption.to_csv("output/consumption_history.csv")
+    consumption.to_csv("data/consumption_history.csv")
 
 if args.imports:
     imports = hist.retrieve_imports(start, end)
-    imports.to_csv("output/imports_history.csv")
+    imports.to_csv("data/imports_history.csv")
 
 if args.unavailabilities:
     unavailability = hist.retrieve_unavailability(start, end)
-    unavailability.to_csv("output/unavailability_history.csv")
+    unavailability.to_csv("data/unavailability_history.csv")
