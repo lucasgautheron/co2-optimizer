@@ -1,5 +1,7 @@
 from datetime import datetime
 import pytz
+
+import numpy as np
 from scipy.interpolate import interp1d
 
 
@@ -16,8 +18,6 @@ def datetime_to_str(dt):
     s = "{0}:{1}".format(s[:-2], s[-2:])
     return s
 
-
-import numpy as np
 
 def interp(x, kind="nearest"):
     idx = np.arange(len(x))
