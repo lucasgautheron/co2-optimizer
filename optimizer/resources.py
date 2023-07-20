@@ -80,6 +80,8 @@ class RTEAPI(Resource):
     def request(self, resource, cache_expiration=None):
         if self.fetch_cache:
             res = self.retrieve_cache(resource)
+        else:
+            res = None
 
         if res is not None:
             return res
@@ -105,6 +107,7 @@ class RTEAPI(Resource):
 
         return res
 
+
 class EMAPI(Resource):
     def __init__(self, base_url=None, fetch_cache: bool = True, debug: bool = False):
         self.fetch_cache = fetch_cache
@@ -120,6 +123,8 @@ class EMAPI(Resource):
     def request(self, resource, cache_expiration=None):
         if self.fetch_cache:
             res = self.retrieve_cache(resource)
+        else:
+            res = None
 
         if res is not None:
             return res
