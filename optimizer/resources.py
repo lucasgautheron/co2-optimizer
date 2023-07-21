@@ -129,7 +129,7 @@ class ElectricityMapsAPI(Resource):
         if res is not None:
             return res
 
-        url = f"https://api-access.electricitymaps.com/{self.api_base_url}/{url}"
+        url = f"https://api-access.electricitymaps.com/{self.api_base_url}/{resource}"
 
         res = requests.get(url, headers={"auth-token": self.api_key})
 
