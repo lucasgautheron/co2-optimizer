@@ -197,7 +197,7 @@ void updateChargeState() {
     current_charge_hour = starting_hour;
     update_lcd = true;
 
-    // if we have been charging, decrease remaning charge time
+    // if we have been charging, decrease remaining charge time
     if (was_charging) {
       if (config_charge_time == 1) {
         config_charge_time = 0;
@@ -311,13 +311,13 @@ void updateLCD() {
         break;
       
       lcd.setCursor(0,1);
-      int8_t i = sizeof(charge_command)-1;
-      for (; i >= 0; i--) {
-        if(charge_command[i] == 1) {
+      int8_t last_charge_hour = sizeof(charge_command)-1;
+      for (; last_charge_hour >= 0; last_charge_hour--) {
+        if(charge_command[last_charge_hour] == 1) {
           break;
         }
       }
-      sprintf(buf, "%d hours left", i-current_charge_hour+1);
+      sprintf(buf, "%d hours left", last_charge_hour-current_charge_hour+1);
       lcd.print(buf);
       break;
     }
