@@ -50,7 +50,7 @@ enum {
   CHARGE_DONE
 };
 
-const unsigned long HOUR = 10L * 1000L;
+const unsigned long HOUR = 3600L * 1000L;
 unsigned long charge_start_time = 0;
 uint8_t current_charge_hour = 0;
 uint8_t charge_command[48];
@@ -89,6 +89,15 @@ void setup_wifi() {
     //delay(10000);
   }
 
+}
+
+void setDefaultCommand() {
+  uint8_t i = 0;
+  for(; i < config_charge_time; ++i)
+    charge_command[i] = 1;
+
+  for(; i < sizeof(charge_command); ++i)
+    charge_command[i] = 0;
 }
 
 void readCommand() {
@@ -245,6 +254,7 @@ void updateConfig(byte btnStatus) {
       }
       else if(btnStatus == BUTTON_SELECT) {
         httpQueryCommand();
+        setDefaultCommand();
         charge_start_time = millis();
         current_charge_hour = 0;
       }
@@ -259,6 +269,7 @@ void updateConfig(byte btnStatus) {
       }
       else if(btnStatus == BUTTON_SELECT) {
         httpQueryCommand();
+        setDefaultCommand();
         charge_start_time = millis();
         current_charge_hour = 0;
       }
@@ -368,7 +379,8 @@ void btnListener(byte btnStatus) {
       updateConfig(btnStatus);
       if (sleep_mode) {
         sleep_mode = false;
-        lcd.display();        
+        pinMode(10, OUTPUT);
+        digitalWrite(10, HIGH);        
       }
       update_lcd = true;
   }
@@ -430,7 +442,8 @@ void loop() {
   if (millis() - last_lcd_update >= 30000L) {
     if(!sleep_mode) {
       sleep_mode = true;
-      lcd.noDisplay();
+      pinMode(10, OUTPUT);
+      digitalWrite(10, LOW);
     }
   }
 
