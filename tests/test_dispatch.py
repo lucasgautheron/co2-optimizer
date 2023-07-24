@@ -13,7 +13,7 @@ from optimizer.sources import (
     ImportedPower,
 )
 
-from optimizer.production import ProductionPrediction
+from optimizer.production import MeritOrderModel
 
 from datetime import datetime
 import numpy as np
@@ -49,7 +49,7 @@ def test_consumption(start, end):
     end_dtime = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
     interval_duration = int((end_dtime - start_dtime).total_seconds() / 3600)
 
-    prediction = ProductionPrediction([])
+    prediction = MeritOrderModel([])
     consumption = prediction.get_consumption(start, end)
 
     print(consumption)
@@ -73,7 +73,7 @@ def test_dispatch(sources, start, end):
     interval_duration = int((end_dtime - start_dtime).total_seconds() / 3600)
     n_sources = len(sources)
 
-    prediction = ProductionPrediction(list(sources.values()))
+    prediction = MeritOrderModel(list(sources.values()))
     production = prediction.dispatch(start, end)
 
     assert production.shape[0] == len(

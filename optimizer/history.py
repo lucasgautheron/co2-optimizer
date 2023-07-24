@@ -204,7 +204,7 @@ class History:
     def retrieve_carbon_intensity(self):
         from datetime import datetime
 
-        expiration = now().replace(minute=0, second=0) + timedelta(days=1)
+        expiration = now().replace(minute=0, second=0) + timedelta(hours=12)
 
         api = ElectricityMapsAPI()
         res = api.request(

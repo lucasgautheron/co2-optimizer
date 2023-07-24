@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+import pandas as pd
 import numpy as np
 
 from .resources import RTEAPI
@@ -35,6 +36,9 @@ class PowerSource(ABC):
 
         if "installed_capacity" in data[name]:
             self.installed_capacity = data[name]["installed_capacity"]
+
+        if "rte_production_type" in data[name]:
+            self.rte_production_type = data[name]["rte_production_type"]
 
         if "color" in data[name]:
             self.color = data[name]["color"]
@@ -108,6 +112,7 @@ class PowerSource(ABC):
         start_hour = start_dtime.replace(minute=0, second=0)
         start_rq = datetime_to_str(start_hour)
 
+        forecasts = []
         availability = np.zeros(n_bins)
         data_points = np.zeros(n_bins)
 
@@ -119,14 +124,24 @@ class PowerSource(ABC):
                 f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}",
                 cache_expiration=datetime_to_str(start_hour + timedelta(hours=1)),
             )
+            forecasts = res.json()["forecasts"]
         else:
-            res = api.request(
-                f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&start_date={start_rq}&end_date={end}",
+            periods = pd.date_range(
+                start=start_dtime.replace(minute=0, second=0), end=end_dtime, freq="1d"
             )
+            periods = zip(periods[:-1], periods[1:])
 
-        data = res.json()
+            for t0, t1 in periods:
+                start_rq = datetime_to_str(t0)
+                end_rq = datetime_to_str(t1)
 
-        for forecast in data["forecasts"]:
+                res = api.request(
+                    f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&start_date={start_rq}&end_date={end_rq}",
+                )
+
+                forecasts += res.json()["forecasts"]
+
+        for forecast in forecasts:
             t_begin = np.array(
                 [
                     (str_to_datetime(v["start_date"]) - start_dtime).total_seconds()
@@ -158,6 +173,59 @@ class PowerSource(ABC):
 
         availability = interp(availability, kind="linear")
         return availability
+
+    def get_production(self, start, end):
+        start_dt = str_to_datetime(start)
+        end_dt = str_to_datetime(end)
+
+        n_bins = int((end_dt - start_dt).total_seconds() / 3600)
+
+        production = np.zeros(n_bins)
+        data_points = np.zeros(n_bins)
+
+        periods = pd.date_range(start=start_dt, end=end_dt, freq="1W")
+        periods = zip(periods[:-1], periods[1:])
+
+        api = RTEAPI()
+
+        for t0, t1 in periods:
+            start_rq = datetime_to_str(t0)
+            end_rq = datetime_to_str(t1)
+
+            res = api.request(
+                f"http://digital.iservices.rte-france.com/open_api/actual_generation/v1/actual_generations_per_production_type?production_type={self.rte_production_type}&start_date={start_rq}&end_date={end_rq}",
+            )
+
+            data = res.json()["actual_generations_per_production_type"]
+
+            for row in data:
+                if row["production_type"] != self.rte_production_type:
+                    continue
+
+                t_begin = np.array(
+                    [
+                        (str_to_datetime(v["start_date"]) - start_dt).total_seconds()
+                        / 3600
+                        for v in row["values"]
+                    ]
+                ).astype(int)
+
+                t_end = np.array(
+                    [
+                        (str_to_datetime(v["end_date"]) - start_dt).total_seconds()
+                        / 3600
+                        for v in row["values"]
+                    ]
+                ).astype(int)
+
+                values = np.array([v["value"] for v in row["values"]])
+
+                for i in range(len(t_begin)):
+                    production[t_begin[i] : t_end[i]] += values[i]
+                    data_points[t_begin[i] : t_end[i]] += 1
+
+        production /= data_points
+        return production
 
 
 class WindPower(PowerSource):
@@ -353,3 +421,68 @@ class ImportedPower(PowerSource):
 
         availability = [self.installed_capacity] * n_bins
         return availability
+
+    def get_production(self, start, end):
+        start_dt = str_to_datetime(start)
+        end_dt = str_to_datetime(end)
+
+        n_bins = int((end_dt - start_dt).total_seconds() / 3600)
+
+        production = np.zeros(n_bins)
+        data_points = np.zeros(n_bins)
+
+        periods = pd.date_range(start=start_dt, end=end_dt, freq="2W")
+        periods = zip(periods[:-1], periods[1:])
+
+        api = RTEAPI()
+
+        for t0, t1 in periods:
+            start_rq = datetime_to_str(t0)
+            end_rq = datetime_to_str(t1)
+
+            url = f"http://digital.iservices.rte-france.com/open_api/physical_flow/v1/physical_flows?start_date={start_rq}&end_date={end_rq}"
+
+            res = api.request(url)
+
+            try:
+                data = res.json()
+            except:
+                print(f"request failed: {url}")
+                print(res.status_code)
+                print(res.content)
+                continue
+
+            data = res.json()["physical_flows"]
+
+            for row in data:
+                sender = row["sender_country_name"]
+                receiver = row["receiver_country_name"]
+
+                sign = 1 if receiver == "France" else -1
+
+                t_begin = np.array(
+                    [
+                        (str_to_datetime(v["start_date"]) - start_dt).total_seconds()
+                        / 3600
+                        for v in row["values"]
+                    ]
+                ).astype(int)
+
+                t_end = np.array(
+                    [
+                        (str_to_datetime(v["end_date"]) - start_dt).total_seconds()
+                        / 3600
+                        for v in row["values"]
+                    ]
+                ).astype(int)
+
+                values = sign*np.array([v["value"] for v in row["values"]])
+
+                for i in range(len(t_begin)):
+                    production[t_begin[i] : t_end[i]] += values[i]
+                    data_points[t_begin[i] : t_end[i]] += 1
+
+        production /= data_points
+        return production
+
+        return pd.DataFrame(stats).sort_values(["sender", "receiver", "start_date"])

@@ -27,7 +27,7 @@ else:
     end = f"{args.end}T00:00:00+01:00"
 
 optimizer = Optimizer()
-production = optimizer.prediction.dispatch(start, end)
+production = optimizer.model.dispatch(start, end)
 carbon_intensity = np.array([source.carbon_intensity for source in optimizer.sources])
 
 t = np.arange(production.shape[1])

@@ -2,46 +2,55 @@ SolarPower:
   carbon_intensity: 30
   marginal_cost: 0
   color: "#EE8845"
+  rte_production_type: SOLAR
 WindPower:
   carbon_intensity: 13
   marginal_cost: 0
   color: "#86D2C2"
+  rte_production_type: WIND_ONSHORE
 GasPower:
   carbon_intensity: 501
   marginal_cost: 80
   installed_capacity: 12800
   color: "#BF486D"
+  rte_production_type: FOSSIL_GAS
 CoalPower:
   carbon_intensity: 954
   marginal_cost: 90
   installed_capacity: 1820
   color: "#B89E55"
+  rte_production_type: FOSSIL_HARD_COAL
 BiomassPower:
   carbon_intensity: 230
   marginal_cost: 70
   installed_capacity: 2230
   color: "green"
+  rte_production_type: BIOMASS
 NuclearPower:
   carbon_intensity: 5
   marginal_cost: 10
   installed_capacity: 61400
   color: "#BAC039"
+  rte_production_type: NUCLEAR
 HydroPower:
   carbon_intensity: 11
   marginal_cost: 0
   color: "#4585B8"
   installed_capacity: 11514
+  rte_production_type: HYDRO_RUN_OF_RIVER_AND_POUNDAGE
 ReservoirHydroPower:
   carbon_intensity: 11
   marginal_cost: 85
   installed_capacity: 8787
   color: "#4585EE"
+  rte_production_type: HYDRO_WATER_RESERVOIR
 StoredHydroPower:
   carbon_intensity: 67
   marginal_cost: 100
   installed_capacity: 5064
+  rte_production_type: HYDRO_PUMPED_STORAGE
 ImportedPower:
   carbon_intensity: 200
   marginal_cost: 1000
-  installed_capacity: 10000
-  color: "gray" 
+  installed_capacity: 30000
+  color: "gray"
