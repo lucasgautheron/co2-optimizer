@@ -8,6 +8,7 @@ from datetime import timedelta
 
 import pandas as pd
 
+
 class ProductionPrediction:
     def __init__(self, sources: list):
         self.sources = sources

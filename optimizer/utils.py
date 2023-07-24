@@ -4,17 +4,18 @@ import pytz
 import numpy as np
 from scipy.interpolate import interp1d
 
+DATE_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 
 def now():
     return datetime.now(pytz.timezone("Europe/Paris"))
 
 
 def str_to_datetime(s):
-    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S%z")
+    return datetime.strptime(s, DATE_FORMAT)
 
 
 def datetime_to_str(dt):
-    s = datetime.strftime(dt, "%Y-%m-%dT%H:%M:%S%z")
+    s = datetime.strftime(dt, DATE_FORMAT)
     s = "{0}:{1}".format(s[:-2], s[-2:])
     return s
 
