@@ -1,4 +1,5 @@
 from optimizer.optimization import Optimizer
+from optimizer.production import LinearCostModel
 
 from datetime import datetime, timedelta
 import pytz
@@ -26,7 +27,7 @@ else:
     start = f"{args.start}T00:00:00+01:00"
     end = f"{args.end}T00:00:00+01:00"
 
-optimizer = Optimizer()
+optimizer = Optimizer(model=LinearCostModel)
 production = optimizer.model.dispatch(start, end)
 carbon_intensity = np.array([source.carbon_intensity for source in optimizer.sources])
 

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 from optimizer.optimization import Optimizer
+from optimizer.production import LinearCostModel
 from optimizer.utils import datetime_to_str
 
 from datetime import timedelta
@@ -63,11 +64,14 @@ for max_time in MAX_TIMES:
         baseline_command[:charge_time] = 1
         baseline_emissions = np.dot(ci, baseline_command)
 
-        optimum = Optimizer()
-        optimum_command = optimum.optimize(charge_time, max_time, start, end, ci)
-        optimum_emissions = np.dot(ci, optimum_command)
+        try:
+            optimum = Optimizer()
+            optimum_command = optimum.optimize(charge_time, max_time, start, end, ci)
+            optimum_emissions = np.dot(ci, optimum_command)
+        except:
+            continue
 
-        model_optimum = Optimizer()
+        model_optimum = Optimizer(model=LinearCostModel)
         model_command = model_optimum.optimize(charge_time, max_time, start, end)
         model_emissions = np.dot(ci, model_command)
 

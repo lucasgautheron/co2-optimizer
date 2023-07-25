@@ -117,7 +117,7 @@ class MeritOrderModel(ProductionModel):
         return production
 
 
-class NNModel(ProductionModel):
+class LinearCostModel(ProductionModel):
     def __init__(self, sources: list):
         self.sources = sources
         self.T = 48
@@ -146,7 +146,7 @@ class NNModel(ProductionModel):
 
     def objective(x, c, theta):
         n_sources = int((x.shape[1] - 1) / 2)
-        pred = NNModel.solve(x[:, : n_sources + 1], c, theta)
+        pred = LinearCostModel.solve(x[:, : n_sources + 1], c, theta)
 
         loss = np.sum(((pred/1000 - x[:, n_sources + 1 :]/1000)) ** 2)
         print(loss)
@@ -182,7 +182,7 @@ class NNModel(ProductionModel):
         theta0[2:] += 0.05
 
         res = minimize(
-            partial(NNModel.objective, X, marginal_cost),
+            partial(LinearCostModel.objective, X, marginal_cost),
             theta0,
             method="SLSQP",
             bounds=[(0, 1)] * n_sources,
@@ -214,4 +214,4 @@ class NNModel(ProductionModel):
 
         theta = np.load("data/theta.npy")
 
-        return NNModel.solve(X, marginal_cost, theta).T
+        return LinearCostModel.solve(X, marginal_cost, theta).T

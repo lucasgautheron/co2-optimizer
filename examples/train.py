@@ -1,4 +1,4 @@
-from optimizer.production import NNModel
+from optimizer.production import LinearCostModel
 from optimizer.sources import *
 
 from datetime import datetime, timedelta
@@ -39,5 +39,5 @@ sources = [
     ImportedPower(),
 ]
 
-model = NNModel(sources)
+model = LinearCostModel(sources)
 model.train(start, end)
