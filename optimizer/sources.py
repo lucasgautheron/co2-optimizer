@@ -52,38 +52,56 @@ class PowerSource(ABC):
         end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
-        api = RTEAPI()
-        res = api.request(
-            f"http://digital.iservices.rte-france.com/open_api/unavailability_additional_information/v4/generation_unavailabilities?status=ACTIVE&date_type=APPLICATION_DATE&start_date={start}&end_date={end}&last_version=true",
-        )
-
-        unvailabilities = res.json()["generation_unavailabilities"]
-
         units = {}
 
-        for unavailability in unvailabilities:
-            if unavailability["production_type"] not in production_type:
-                continue
+        periods = pd.date_range(start=start_dtime, end=end_dtime, freq="2W")
+        if len(periods) <= 1:
+            periods = [(start_dtime, end_dtime)]
+        else:
+            periods = zip(periods[:-1], periods[1:])
 
-            unit = unavailability["unit"]["eic_code"]
+        api = RTEAPI()
+        for t0, t1 in periods:
+            start_rq = datetime_to_str(t0)
+            end_rq = datetime_to_str(t1)
 
-            if unit not in units:
-                units[unit] = np.zeros(n_bins)
+            url = f"http://digital.iservices.rte-france.com/open_api/unavailability_additional_information/v4/generation_unavailabilities?date_type=APPLICATION_DATE&start_date={start_rq}&end_date={end_rq}&last_version=true"
 
-            for v in unavailability["values"]:
-                unavail_start_dtime = str_to_datetime(v["start_date"])
-                unavail_end_dtime = str_to_datetime(v["end_date"])
+            res = api.request(url)
 
-                t_begin = int(
-                    (unavail_start_dtime - start_dtime).total_seconds() / 3600
+            try:
+                unvailabilities = res.json()["generation_unavailabilities"]
+            except:
+                print(
+                    f"no unavailabilities found (start_date={start_rq}&end_date={end_rq}&last_version=true)"
                 )
-                t_end = int((unavail_end_dtime - start_dtime).total_seconds() / 3600)
+                return {}
 
-                units[unit][t_begin:t_end] = np.maximum(
-                    units[unit][t_begin:t_end], v["unavailable_capacity"]
-                )
+            for unavailability in unvailabilities:
+                if unavailability["production_type"] not in production_type:
+                    continue
 
-        return units
+                unit = unavailability["unit"]["eic_code"]
+
+                if unit not in units:
+                    units[unit] = np.zeros(n_bins)
+
+                for v in unavailability["values"]:
+                    unavail_start_dtime = str_to_datetime(v["start_date"])
+                    unavail_end_dtime = str_to_datetime(v["end_date"])
+
+                    t_begin = int(
+                        (unavail_start_dtime - start_dtime).total_seconds() / 3600
+                    )
+                    t_end = int(
+                        (unavail_end_dtime - start_dtime).total_seconds() / 3600
+                    )
+
+                    units[unit][t_begin:t_end] = np.maximum(
+                        units[unit][t_begin:t_end], v["unavailable_capacity"]
+                    )
+
+            return units
 
     def prediction_forecast(
         self,
@@ -124,7 +142,10 @@ class PowerSource(ABC):
                 f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}",
                 cache_expiration=datetime_to_str(start_hour + timedelta(hours=1)),
             )
-            forecasts = res.json()["forecasts"]
+            try:
+                forecasts = res.json()["forecasts"]
+            except:
+                print(f"no forecast found (future)")
         else:
             periods = pd.date_range(
                 start=start_dtime.replace(minute=0, second=0), end=end_dtime, freq="1d"
@@ -138,8 +159,12 @@ class PowerSource(ABC):
                 res = api.request(
                     f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&start_date={start_rq}&end_date={end_rq}",
                 )
-
-                forecasts += res.json()["forecasts"]
+                try:
+                    forecasts += res.json()["forecasts"]
+                except:
+                    print(
+                        f"no forecast found (production_type={production_type}&start_date={start_rq}&end_date={end_rq})"
+                    )
 
         for forecast in forecasts:
             t_begin = np.array(
@@ -184,7 +209,10 @@ class PowerSource(ABC):
         data_points = np.zeros(n_bins)
 
         periods = pd.date_range(start=start_dt, end=end_dt, freq="1W")
-        periods = zip(periods[:-1], periods[1:])
+        if len(periods) <= 1:
+            periods = [(start_dt, end_dt)]
+        else:
+            periods = zip(periods[:-1], periods[1:])
 
         api = RTEAPI()
 
@@ -196,7 +224,13 @@ class PowerSource(ABC):
                 f"http://digital.iservices.rte-france.com/open_api/actual_generation/v1/actual_generations_per_production_type?production_type={self.rte_production_type}&start_date={start_rq}&end_date={end_rq}",
             )
 
-            data = res.json()["actual_generations_per_production_type"]
+            try:
+                data = res.json()["actual_generations_per_production_type"]
+            except:
+                print(
+                    f"no production data found for production_type={self.rte_production_type}&start_date={start_rq}&end_date={end_rq}"
+                )
+                continue
 
             for row in data:
                 if row["production_type"] != self.rte_production_type:
@@ -329,51 +363,11 @@ class HydroPower(PowerSource):
     def get_availability(self, start, end):
         start_dtime = str_to_datetime(start)
         end_dtime = str_to_datetime(end)
-        n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
-        availability = np.zeros(n_bins)
-        data_points = np.zeros(n_bins)
+        past_start = datetime_to_str(start_dtime - timedelta(days=2))
+        past_end = datetime_to_str(end_dtime - timedelta(days=2))
 
-        past_start = datetime_to_str(
-            start_dtime
-            - timedelta(days=(end_dtime - start_dtime).total_seconds() / 86400)
-        )
-        past_end = start
-
-        api = RTEAPI()
-        res = api.request(
-            f"http://digital.iservices.rte-france.com/open_api/actual_generation/v1/actual_generations_per_production_type?start_date={past_start}&end_date={past_end}",
-        )
-
-        data = res.json()
-
-        for production in data["actual_generations_per_production_type"]:
-            if production["production_type"] != "HYDRO_RUN_OF_RIVER_AND_POUNDAGE":
-                continue
-
-            t_begin = np.array(
-                [
-                    (str_to_datetime(v["start_date"]) - start_dtime).total_seconds()
-                    / 3600
-                    for v in production["values"]
-                ]
-            ).astype(int)
-
-            t_end = np.array(
-                [
-                    (str_to_datetime(v["end_date"]) - start_dtime).total_seconds()
-                    / 3600
-                    for v in production["values"]
-                ]
-            ).astype(int)
-
-            values = np.array([v["value"] for v in production["values"]])
-
-            for i in range(len(t_begin)):
-                availability[t_begin[i] : t_end[i]] += values[i]
-                data_points[t_begin[i] : t_end[i]] += 1
-
-        availability = availability / data_points
+        availability = self.get_production(past_start, past_end)
         availability = interp(availability, kind="nearest")
 
         return availability
@@ -432,7 +426,10 @@ class ImportedPower(PowerSource):
         data_points = np.zeros(n_bins)
 
         periods = pd.date_range(start=start_dt, end=end_dt, freq="2W")
-        periods = zip(periods[:-1], periods[1:])
+        if len(periods) <= 1:
+            periods = [(start_dt, end_dt)]
+        else:
+            periods = zip(periods[:-1], periods[1:])
 
         api = RTEAPI()
 
@@ -476,7 +473,7 @@ class ImportedPower(PowerSource):
                     ]
                 ).astype(int)
 
-                values = sign*np.array([v["value"] for v in row["values"]])
+                values = sign * np.array([v["value"] for v in row["values"]])
 
                 for i in range(len(t_begin)):
                     production[t_begin[i] : t_end[i]] += values[i]
