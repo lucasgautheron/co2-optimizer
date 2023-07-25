@@ -21,11 +21,11 @@ class Optimizer:
         self.sources = [
             WindPower(),
             SolarPower(),
+            HydroPower(),
             NuclearPower(),
             GasPower(),
             CoalPower(),
             BiomassPower(),
-            HydroPower(),
             ReservoirHydroPower(),
             ImportedPower(),
         ]

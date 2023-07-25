@@ -54,13 +54,14 @@ class PowerSource(ABC):
 
         units = {}
 
-        periods = pd.date_range(start=start_dtime, end=end_dtime, freq="2W")
+        periods = pd.date_range(start=start_dtime, end=end_dtime, freq="1W")
         if len(periods) <= 1:
             periods = [(start_dtime, end_dtime)]
         else:
             periods = zip(periods[:-1], periods[1:])
 
         api = RTEAPI()
+        
         for t0, t1 in periods:
             start_rq = datetime_to_str(t0)
             end_rq = datetime_to_str(t1)
@@ -87,6 +88,9 @@ class PowerSource(ABC):
                     units[unit] = np.zeros(n_bins)
 
                 for v in unavailability["values"]:
+                    if unavailability["status"] == "DISMISSED":
+                        continue
+
                     unavail_start_dtime = str_to_datetime(v["start_date"])
                     unavail_end_dtime = str_to_datetime(v["end_date"])
 
@@ -101,7 +105,8 @@ class PowerSource(ABC):
                         units[unit][t_begin:t_end], v["unavailable_capacity"]
                     )
 
-            return units
+        
+        return units
 
     def prediction_forecast(
         self,

@@ -125,14 +125,16 @@ class LinearCostModel(ProductionModel):
     def solve(x, c, theta):
         theta = c * theta
 
+        print(theta)
+
         n_sources = x.shape[1] - 1
         pred = cp.Variable((x.shape[0], n_sources))
 
         constraints = [
             pred >= 0,  # production must be positive
-            pred <= x[:, :n_sources]/1000,  # prod < avail
+            pred <= x[:, :n_sources] / 1000,  # prod < avail
             cp.sum(pred, axis=1)
-            >= x[:, n_sources]/1000,  # total production must meet demand at any time,
+            >= x[:, n_sources] / 1000,  # total production must meet demand at any time,
         ]
 
         prob = cp.Problem(
@@ -142,13 +144,17 @@ class LinearCostModel(ProductionModel):
 
         # prob.solve(solver="SCS", verbose=True)
         prob.solve()
-        return pred.value
+        return 1000*pred.value
 
     def objective(x, c, theta):
         n_sources = int((x.shape[1] - 1) / 2)
         pred = LinearCostModel.solve(x[:, : n_sources + 1], c, theta)
 
-        loss = np.sum(((pred/1000 - x[:, n_sources + 1 :]/1000)) ** 2)
+        loss = (
+            np.sum((pred / 1000 - x[:, n_sources + 1 :] / 1000) ** 2)
+            / pred.shape[0]
+            / pred.shape[1]
+        )
         print(loss)
         return loss
 
@@ -172,14 +178,29 @@ class LinearCostModel(ProductionModel):
 
         X = np.zeros((n_bins, 2 * n_sources + 1))
         X[:, :n_sources] = availability.T
-        X[:, n_sources] = consumption.T
+        X[:, n_sources] = consumption.T - np.minimum(
+            0, production_history.T[:, -1]
+        )  # production + imports = consumption + exports
+        X[:, n_sources + 1 :] = np.maximum(0, production_history.T)
         X[:, n_sources + 1 :] = np.minimum(availability.T, production_history.T)
+
+        X[:, :3] = production_history.T[:, :3]
+        X[:, n_sources + 1 : n_sources + 1 + 3] = production_history.T[:, :3]
+
+        from matplotlib import pyplot as plt
+
+        for k in range(n_sources):
+            plt.clf()
+            plt.plot(X[:, k + n_sources + 1] / X[:, k])
+            plt.ylim(0, 1.25)
+            plt.savefig(f"output/train_{self.sources[k].__class__.__name__}.png")
+
         X = X[~np.isnan(X).any(axis=1)]
 
         from functools import partial
 
-        theta0 = np.zeros(n_sources)
-        theta0[2:] += 0.05
+        theta0 = np.random.uniform(0, 1, n_sources)
+        theta0[:3] = 0
 
         res = minimize(
             partial(LinearCostModel.objective, X, marginal_cost),
