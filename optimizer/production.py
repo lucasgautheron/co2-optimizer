@@ -214,8 +214,4 @@ class NNModel(ProductionModel):
 
         theta = np.load("data/theta.npy")
 
-        for i, source in enumerate(self.sources):
-            print(source.__class__.__name__)
-            print(theta[i])
-
         return NNModel.solve(X, marginal_cost, theta).T

@@ -148,7 +148,7 @@ class PowerSource(ABC):
                 print(f"no forecast found (future)")
         else:
             periods = pd.date_range(
-                start=start_dtime.replace(minute=0, second=0), end=end_dtime, freq="1d"
+                start=start_dtime.replace(minute=0, second=0), end=end_dtime, freq="2d"
             )
             periods = zip(periods[:-1], periods[1:])
 
