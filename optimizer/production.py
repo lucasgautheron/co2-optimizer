@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 
 from .resources import RTEAPI
 
-from .utils import str_to_datetime, datetime_to_str, now, interp
+from .utils import str_to_datetime, datetime_to_str, interp
 from datetime import timedelta
 
 import pandas as pd
@@ -21,7 +21,9 @@ class ProductionModel(ABC):
         end_dtime = str_to_datetime(end)
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
-        start_rq_dtime = start_dtime.replace(hour=0, minute=0, second=0)
+        start_rq_dtime = (start_dtime - timedelta(days=1)).replace(
+            hour=0, minute=0, second=0
+        )
         end_rq_dtime = (end_dtime + timedelta(days=1)).replace(
             hour=0, minute=0, second=0
         )
@@ -32,10 +34,12 @@ class ProductionModel(ABC):
         api = RTEAPI()
 
         periods = pd.date_range(start=start_rq_dtime, end=end_rq_dtime, freq="2d")
-        if len(periods) == 0:
+        if len(periods) <= 1:
             periods = [(start_rq_dtime, end_rq_dtime)]
         else:
-            periods = zip(periods[:-1], periods[1:])
+            periods = list(zip(periods[:-1], periods[1:])) + list(
+                zip(periods[:-1] + timedelta(days=1), periods[1:] + timedelta(days=1))
+            )
 
         for t0, t1 in periods:
             start_rq = datetime_to_str(t0)
@@ -47,24 +51,13 @@ class ProductionModel(ABC):
 
             data = res.json()
 
+            if "short_term" not in data:
+                continue
+
             for forecast in data["short_term"]:
-                t_begin = np.array(
-                    [
-                        (str_to_datetime(v["start_date"]) - start_dtime).total_seconds()
-                        / 3600
-                        for v in forecast["values"]
-                    ]
-                ).astype(int)
-
-                t_end = np.array(
-                    [
-                        (str_to_datetime(v["end_date"]) - start_dtime).total_seconds()
-                        / 3600
-                        for v in forecast["values"]
-                    ]
-                ).astype(int)
-
-                values = np.array([v["value"] for v in forecast["values"]])
+                t_begin, t_end, values = RTEAPI.values_hist(
+                    forecast["values"], start_dtime, end_dtime
+                )
 
                 for i in range(len(t_begin)):
                     consumption[t_begin[i] : t_end[i]] += values[i]
@@ -77,6 +70,51 @@ class ProductionModel(ABC):
     @abstractmethod
     def dispatch(self, start, end):
         pass
+
+    def plot(self, start, end, ax):
+        carbon_intensity = [source.carbon_intensity for source in self.sources]
+        production = self.dispatch(start, end)
+
+        t = range(production.shape[1])
+        hours = [
+            (
+                str_to_datetime(start).replace(tzinfo=None) + timedelta(hours=int(h))
+            ).strftime("%H:%M")
+            for h in np.arange(production.shape[1])
+        ]
+
+        total = np.zeros(production.shape[1])
+
+        n = 0
+        for source in self.sources:
+            color = source.color
+            ax.bar(
+                t,
+                production[n],
+                bottom=total,
+                color=color,
+                label=source.__class__.__name__,
+                width=1.0,
+            )
+            total += production[n]
+            n += 1
+
+        ax.set_ylabel("MWh")
+
+        ci = carbon_intensity @ production
+        ci /= production.sum(axis=0)
+
+        ax2 = ax.twinx()  # instantiate a second axes that shares the same x-axis
+
+        ax2.set_ylabel(
+            "kgCO$_2$/MWh", color="black"
+        )  # we already handled the x-label with ax1
+        ax2.plot(t, ci, color="black", label="kgCO$_2$/MWh")
+        ax2.tick_params(axis="y", labelcolor="black")
+        ax.set_xticks(t[::4])
+        ax.set_xticklabels([hours[i] for i in t[::4]], rotation=90)
+
+        return ax, ax2
 
 
 class MeritOrderModel(ProductionModel):
@@ -125,8 +163,6 @@ class LinearCostModel(ProductionModel):
     def solve(x, c, theta):
         theta = c * theta
 
-        print(theta)
-
         n_sources = x.shape[1] - 1
         pred = cp.Variable((x.shape[0], n_sources))
 
@@ -144,7 +180,7 @@ class LinearCostModel(ProductionModel):
 
         # prob.solve(solver="SCS", verbose=True)
         prob.solve()
-        return 1000*pred.value
+        return 1000 * pred.value
 
     def objective(x, c, theta):
         n_sources = int((x.shape[1] - 1) / 2)
@@ -155,6 +191,7 @@ class LinearCostModel(ProductionModel):
             / pred.shape[0]
             / pred.shape[1]
         )
+        print(c * theta)
         print(loss)
         return loss
 

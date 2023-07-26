@@ -28,47 +28,23 @@ else:
     end = f"{args.end}T00:00:00+01:00"
 
 optimizer = Optimizer(model=LinearCostModel)
-production = optimizer.model.dispatch(start, end)
 carbon_intensity = np.array([source.carbon_intensity for source in optimizer.sources])
+production = optimizer.model.dispatch(start, end)
+ci = (carbon_intensity@production) / production.sum(axis=0)
 
-t = np.arange(production.shape[1])
+t = np.arange(48)
 hours = [
     (str_to_datetime(start).replace(tzinfo=None) + timedelta(hours=int(h))).strftime(
         "%H:%M"
     )
-    for h in np.arange(production.shape[1])
+    for h in np.arange(48)
 ]
-
-total = np.zeros(production.shape[1])
 
 fig, axes = plt.subplots(
     nrows=2, ncols=1, sharex=True, figsize=(7.5, 7.5), height_ratios=[3, 1]
 )
 
-n = 0
-for source in optimizer.sources:
-    color = source.color
-    axes[0].bar(
-        t,
-        production[n],
-        bottom=total,
-        color=color,
-        label=source.__class__.__name__,
-        width=1.0,
-    )
-    total += production[n]
-    n += 1
-
-axes[0].set_ylabel("MWh")
-
-ci = carbon_intensity @ production
-ci /= production.sum(axis=0)
-
-ax2 = axes[0].twinx()  # instantiate a second axes that shares the same x-axis
-
-ax2.set_ylabel("kgCO$_2$/MWh", color="black")  # we already handled the x-label with ax1
-ax2.plot(t, ci, color="black", label="kgCO$_2$/MWh")
-ax2.tick_params(axis="y", labelcolor="black")
+optimizer.model.plot(start, end, axes[0])
 
 ref_emissions = None
 styles = ["dotted", "dashed", "-"]

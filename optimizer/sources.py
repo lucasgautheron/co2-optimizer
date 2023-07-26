@@ -61,7 +61,7 @@ class PowerSource(ABC):
             periods = zip(periods[:-1], periods[1:])
 
         api = RTEAPI()
-        
+
         for t0, t1 in periods:
             start_rq = datetime_to_str(t0)
             end_rq = datetime_to_str(t1)
@@ -101,11 +101,22 @@ class PowerSource(ABC):
                         (unavail_end_dtime - start_dtime).total_seconds() / 3600
                     )
 
+                    if t_begin >= n_bins:
+                        continue
+
+                    if t_end < 0:
+                        continue
+
+                    if t_begin < 0:
+                        t_begin = 0
+
+                    if t_end >= n_bins:
+                        t_end = n_bins - 1
+
                     units[unit][t_begin:t_end] = np.maximum(
                         units[unit][t_begin:t_end], v["unavailable_capacity"]
                     )
 
-        
         return units
 
     def prediction_forecast(
@@ -133,7 +144,6 @@ class PowerSource(ABC):
         n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
 
         start_hour = start_dtime.replace(minute=0, second=0)
-        start_rq = datetime_to_str(start_hour)
 
         forecasts = []
         availability = np.zeros(n_bins)
@@ -151,11 +161,34 @@ class PowerSource(ABC):
                 forecasts = res.json()["forecasts"]
             except:
                 print(f"no forecast found (future)")
-        else:
-            periods = pd.date_range(
-                start=start_dtime.replace(minute=0, second=0), end=end_dtime, freq="2d"
+
+            start_rq = datetime_to_str(
+                start_dtime.replace(hour=0, minute=0, second=0) + timedelta(days=1)
             )
-            periods = zip(periods[:-1], periods[1:])
+            end_rq = datetime_to_str(
+                start_dtime.replace(hour=0, minute=0, second=0) + timedelta(days=3)
+            )
+
+            res = api.request(
+                f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&start_date={start_rq}&end_date={end_rq}",
+                cache_expiration=datetime_to_str(start_hour + timedelta(hours=1)),
+            )
+            try:
+                forecasts += res.json()["forecasts"]
+            except:
+                print(f"no forecast found (future)")
+        else:
+            start_rq_dtime = (start_dtime - timedelta(days=1)).replace(
+                hour=0, minute=0, second=0
+            )
+            end_rq_dtime = (end_dtime + timedelta(days=1)).replace(
+                hour=0, minute=0, second=0
+            )
+
+            periods = pd.date_range(start=start_rq_dtime, end=end_rq_dtime, freq="2d")
+            periods = list(zip(periods[:-1], periods[1:])) + list(
+                zip(periods[:-1] + timedelta(days=1), periods[1:] + timedelta(days=1))
+            )
 
             for t0, t1 in periods:
                 start_rq = datetime_to_str(t0)
@@ -172,23 +205,9 @@ class PowerSource(ABC):
                     )
 
         for forecast in forecasts:
-            t_begin = np.array(
-                [
-                    (str_to_datetime(v["start_date"]) - start_dtime).total_seconds()
-                    / 3600
-                    for v in forecast["values"]
-                ]
-            ).astype(int)
-
-            t_end = np.array(
-                [
-                    (str_to_datetime(v["end_date"]) - start_dtime).total_seconds()
-                    / 3600
-                    for v in forecast["values"]
-                ]
-            ).astype(int)
-
-            values = np.array([v["value"] for v in forecast["values"]])
+            t_begin, t_end, values = RTEAPI.values_hist(
+                forecast["values"], start_dtime, end_dtime
+            )
 
             for i in range(len(t_begin)):
                 availability[t_begin[i] : t_end[i]] += values[i]
@@ -241,23 +260,9 @@ class PowerSource(ABC):
                 if row["production_type"] != self.rte_production_type:
                     continue
 
-                t_begin = np.array(
-                    [
-                        (str_to_datetime(v["start_date"]) - start_dt).total_seconds()
-                        / 3600
-                        for v in row["values"]
-                    ]
-                ).astype(int)
-
-                t_end = np.array(
-                    [
-                        (str_to_datetime(v["end_date"]) - start_dt).total_seconds()
-                        / 3600
-                        for v in row["values"]
-                    ]
-                ).astype(int)
-
-                values = np.array([v["value"] for v in row["values"]])
+                t_begin, t_end, values = RTEAPI.values_hist(
+                    row["values"], start_dt, end_dt
+                )
 
                 for i in range(len(t_begin)):
                     production[t_begin[i] : t_end[i]] += values[i]
@@ -459,26 +464,12 @@ class ImportedPower(PowerSource):
             for row in data:
                 sender = row["sender_country_name"]
                 receiver = row["receiver_country_name"]
-
                 sign = 1 if receiver == "France" else -1
 
-                t_begin = np.array(
-                    [
-                        (str_to_datetime(v["start_date"]) - start_dt).total_seconds()
-                        / 3600
-                        for v in row["values"]
-                    ]
-                ).astype(int)
-
-                t_end = np.array(
-                    [
-                        (str_to_datetime(v["end_date"]) - start_dt).total_seconds()
-                        / 3600
-                        for v in row["values"]
-                    ]
-                ).astype(int)
-
-                values = sign * np.array([v["value"] for v in row["values"]])
+                t_begin, t_end, values = RTEAPI.values_hist(
+                    row["values"], start_dt, end_dt
+                )
+                values *= sign
 
                 for i in range(len(t_begin)):
                     production[t_begin[i] : t_end[i]] += values[i]
@@ -486,5 +477,3 @@ class ImportedPower(PowerSource):
 
         production /= data_points
         return production
-
-        return pd.DataFrame(stats).sort_values(["sender", "receiver", "start_date"])
