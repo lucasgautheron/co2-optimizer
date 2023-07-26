@@ -48,7 +48,7 @@ idx = pd.date_range(
 carbon_intensity = carbon_intensity.reindex(idx, fill_value=np.nan)
 
 # CHARGE_TIME = 1
-MAX_TIMES = [24, 30, 36]
+MAX_TIMES = [46, 24, 30, 36]
 
 n = 0
 for max_time in MAX_TIMES:
@@ -99,15 +99,15 @@ for max_time in MAX_TIMES:
 
         fig, ax = plt.subplots()
         left_ax, right_ax = model_optimum.model.plot(start, end, ax)
-        right_ax.plot(np.arange(len(ci)), ci, label="baseline", color="red")
-        fig.legend()
-        fig.savefig(f"output/validation_{n}.png")
+        right_ax.plot(np.arange(max_time), ci[:max_time], label="baseline", color="red")
+        fig.legend(bbox_to_anchor=(0.98, 0.9), loc="upper left")
+        fig.savefig(f"output/validation_{n}.png", bbox_inches="tight")
 
         fig, ax = plt.subplots()
         left_ax, right_ax = linear_model_optimum.model.plot(start, end, ax)
-        right_ax.plot(np.arange(len(ci)), ci, label="baseline", color="red")
-        fig.legend()
-        fig.savefig(f"output/validation_{n}_linear.png")
+        right_ax.plot(np.arange(max_time), ci[:max_time], label="baseline", color="red")
+        fig.legend(bbox_to_anchor=(0.98, 0.9), loc="upper left")
+        fig.savefig(f"output/validation_{n}_linear.png", bbox_inches="tight")
 
         n += 1
     # print(max_time, total_gains / total_baseline, total_optimum_gains / total_baseline)
