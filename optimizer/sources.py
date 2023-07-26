@@ -82,39 +82,24 @@ class PowerSource(ABC):
                 if unavailability["production_type"] not in production_type:
                     continue
 
+                if unavailability["status"] == "DISMISSED":
+                    continue
+
                 unit = unavailability["unit"]["eic_code"]
 
                 if unit not in units:
                     units[unit] = np.zeros(n_bins)
 
-                for v in unavailability["values"]:
-                    if unavailability["status"] == "DISMISSED":
-                        continue
+                t_begin, t_end, values = RTEAPI.values_hist(
+                    unavailability["values"],
+                    start_dtime,
+                    end_dtime,
+                    key="unavailable_capacity",
+                )
 
-                    unavail_start_dtime = str_to_datetime(v["start_date"])
-                    unavail_end_dtime = str_to_datetime(v["end_date"])
-
-                    t_begin = int(
-                        (unavail_start_dtime - start_dtime).total_seconds() / 3600
-                    )
-                    t_end = int(
-                        (unavail_end_dtime - start_dtime).total_seconds() / 3600
-                    )
-
-                    if t_begin >= n_bins:
-                        continue
-
-                    if t_end < 0:
-                        continue
-
-                    if t_begin < 0:
-                        t_begin = 0
-
-                    if t_end >= n_bins:
-                        t_end = n_bins - 1
-
-                    units[unit][t_begin:t_end] = np.maximum(
-                        units[unit][t_begin:t_end], v["unavailable_capacity"]
+                for i in range(len(t_begin)):
+                    units[unit][t_begin[i] : t_end[i]] = np.maximum(
+                        units[unit][t_begin[i]:t_end[i]], values[i]
                     )
 
         return units

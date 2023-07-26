@@ -110,7 +110,11 @@ class RTEAPI(Resource):
         return res
 
     def values_hist(
-        values: list, start_dt: datetime, end_dt: datetime, period: int = 3600
+        values: list,
+        start_dt: datetime,
+        end_dt: datetime,
+        period: int = 3600,
+        key: str = None,
     ):
         n_bins = int((end_dt - start_dt).total_seconds() / period)
 
@@ -128,7 +132,10 @@ class RTEAPI(Resource):
             ]
         ).astype(int)
 
-        values = np.array([v["value"] for v in values])
+        if key is None:
+            values = np.array([v["value"] for v in values])
+        else:
+            values = np.array([v[key] for v in values])
 
         mask = (t_end >= 0) & (t_begin < n_bins)
         t_begin = t_begin[mask]
