@@ -2,6 +2,7 @@
 
 #include "WiFiS3.h"
 #include "secrets.h"
+#include "RCSwitch.h"
 
 int keyIndex = 0;            // your network key index number (needed only for WEP)
 
@@ -56,6 +57,10 @@ uint8_t current_charge_hour = 0;
 uint8_t charge_command[48];
 uint8_t charge_state = CHARGE_INACTIVE;
 uint8_t prev_charge_state = CHARGE_INACTIVE;
+
+RCSwitch mySwitch = RCSwitch();
+// Received 2172703744 / 32bit Protocol: 2 ON
+// Received 2390807552 / 32bit Protocol: 2 OFF
 
 void setup_wifi() {
   Serial.begin(9600);
@@ -420,6 +425,10 @@ void setup() {
 
   setup_lcd();
   setup_wifi();
+
+  //mySwitch.enableReceive(D3);
+  mySwitch.enableTransmit(D3);
+  mySwitch.setProtocol(2);
 }
 
 void loop() {
@@ -432,6 +441,14 @@ void loop() {
   if (prev_charge_state != charge_state) {
     prev_charge_state = charge_state;
     update_lcd = true;
+
+    if (charge_state) {
+      mySwitch.send(2390807552, 32);
+      delay(2000);
+    } else {
+      mySwitch.send(2172703744, 32);
+      delay(2000);
+    }
   }
   
   btnListener(getBtnPressed());
@@ -446,6 +463,5 @@ void loop() {
       digitalWrite(10, LOW);
     }
   }
-
   delay(100);
 }
