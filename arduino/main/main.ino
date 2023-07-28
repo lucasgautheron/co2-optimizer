@@ -2,18 +2,19 @@
 
 #include "WiFiS3.h"
 #include "secrets.h"
+#include "RCSwitch.h"
 
 int keyIndex = 0;            // your network key index number (needed only for WEP)
 
 int status = WL_IDLE_STATUS;
 WiFiClient client;
-char server[] = "52.47.174.250";
+char server[] = "52.47.203.135";
 bool awaiting_http_response = false;
 unsigned long last_request = 0;
 
 // LCD and buttons
 const int btnsPin  = A0;
-LiquidCrystal lcd(8, 9, 4, 5, 6, 7);;
+LiquidCrystal lcd(D8, D9, D4, D5, D6, D7);;
 bool update_lcd = true;
 unsigned long last_lcd_update = 0;
 bool sleep_mode = false;
@@ -57,6 +58,13 @@ uint8_t charge_command[48];
 uint8_t charge_state = CHARGE_INACTIVE;
 uint8_t prev_charge_state = CHARGE_INACTIVE;
 
+RCSwitch mySwitch = RCSwitch();
+#define SWITCH_ON 2390807552
+#define SWITCH_OFF 2172703744
+
+// Received 2172703744 / 32bit Protocol: 2 ON
+// Received 2390807552 / 32bit Protocol: 2 OFF
+
 void setup_wifi() {
   Serial.begin(9600);
   while (!Serial) {
@@ -77,7 +85,8 @@ void setup_wifi() {
     Serial.println("Please upgrade the firmware");
   }
 
-  while (status != WL_CONNECTED) {
+  uint8_t tries = 0;
+  while (status != WL_CONNECTED && tries<3) {
     Serial.print("Attempting to connect to SSID: ");
     Serial.println(ssid);
     // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
@@ -85,6 +94,7 @@ void setup_wifi() {
     lcd.clear();
     lcd.setCursor(0,0);
     lcd.print(F("connecting..."));
+    ++tries;
     // wait 10 seconds for connection:
     //delay(10000);
   }
@@ -163,7 +173,7 @@ void httpQueryCommand() {
       max(config_max_time,config_charge_time)
     );
     client.println(get);
-    client.println("Host: 52.47.174.250");
+    client.println("Host: 52.47.203.135");
     client.println("User-Agent: ArduinoWiFi/1.1");
     client.println("Connection: close");
     client.println();
@@ -420,6 +430,10 @@ void setup() {
 
   setup_lcd();
   setup_wifi();
+
+  //mySwitch.enableReceive(D3);
+  mySwitch.enableTransmit(D3);
+  mySwitch.setProtocol(2);
 }
 
 void loop() {
@@ -432,6 +446,18 @@ void loop() {
   if (prev_charge_state != charge_state) {
     prev_charge_state = charge_state;
     update_lcd = true;
+
+    if (charge_state == CHARGE_ACTIVE) {
+      mySwitch.send(SWITCH_ON, 32);
+      delay(500);
+      pinMode(D2, OUTPUT);
+      digitalWrite(D2, HIGH);
+    } else {
+      mySwitch.send(SWITCH_OFF, 32);
+      delay(500);
+      pinMode(D2, OUTPUT);
+      digitalWrite(D2, LOW);
+    }
   }
   
   btnListener(getBtnPressed());
@@ -446,6 +472,5 @@ void loop() {
       digitalWrite(10, LOW);
     }
   }
-
   delay(100);
 }

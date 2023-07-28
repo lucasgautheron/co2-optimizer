@@ -7,33 +7,36 @@ from .sources import (
     NuclearPower,
     GasPower,
     CoalPower,
+    OilPower,
     BiomassPower,
     HydroPower,
     StoredHydroPower,
     ReservoirHydroPower,
     ImportedPower,
 )
-from .production import ProductionPrediction
+from .production import MeritOrderModel
 
 
 class Optimizer:
-    def __init__(self):
+    def __init__(self, model=MeritOrderModel):
         self.sources = [
             WindPower(),
             SolarPower(),
+            HydroPower(),
             NuclearPower(),
             GasPower(),
             CoalPower(),
+            OilPower(),
             BiomassPower(),
-            HydroPower(),
             ReservoirHydroPower(),
+            StoredHydroPower(),
             ImportedPower(),
         ]
 
-        self.prediction = ProductionPrediction(self.sources)
+        self.model = model(self.sources)
 
     def optimize(self, min_time, max_time, start=None, end=None, carbon_intensity=None):
-        production = self.prediction.dispatch(start, end)
+        production = self.model.dispatch(start, end)
 
         if carbon_intensity is None:
             sources_carbon_intensity = np.array(

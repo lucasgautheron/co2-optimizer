@@ -8,6 +8,7 @@ import pytz
 
 import numpy as np
 
+
 def create_app(test_config=None):
     # create and configure the app
 
@@ -49,7 +50,7 @@ def create_app(test_config=None):
         output = "".join(map(str, command.astype(int)))
 
         if "saved_emissions" in request.args:
-            production = optimizer.prediction.dispatch(start, end)
+            production = optimizer.model.dispatch(start, end)
 
             sources_carbon_intensity = np.array(
                 [source.carbon_intensity for source in optimizer.sources]
@@ -68,5 +69,6 @@ def create_app(test_config=None):
         return output
 
     return app
+
 
 app = create_app()

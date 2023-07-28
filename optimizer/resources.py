@@ -5,6 +5,8 @@ from os import getenv
 import re
 import requests
 
+import numpy as np
+
 import base64
 import pickle
 
@@ -106,6 +108,44 @@ class RTEAPI(Resource):
                 pass
 
         return res
+
+    def values_hist(
+        values: list,
+        start_dt: datetime,
+        end_dt: datetime,
+        period: int = 3600,
+        key: str = None,
+    ):
+        n_bins = int((end_dt - start_dt).total_seconds() / period)
+
+        t_begin = np.array(
+            [
+                (str_to_datetime(v["start_date"]) - start_dt).total_seconds() / 3600
+                for v in values
+            ]
+        ).astype(int)
+
+        t_end = np.array(
+            [
+                (str_to_datetime(v["end_date"]) - start_dt).total_seconds() / 3600
+                for v in values
+            ]
+        ).astype(int)
+
+        if key is None:
+            values = np.array([v["value"] for v in values])
+        else:
+            values = np.array([v[key] for v in values])
+
+        mask = (t_end >= 0) & (t_begin < n_bins)
+        t_begin = t_begin[mask]
+        t_end = t_end[mask]
+        values = values[mask]
+
+        t_begin = np.maximum(0, t_begin)
+        t_end = np.minimum(n_bins - 1, t_end)
+
+        return t_begin, t_end, values
 
 
 class ElectricityMapsAPI(Resource):

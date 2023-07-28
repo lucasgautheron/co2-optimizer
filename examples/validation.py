@@ -2,12 +2,15 @@ import pandas as pd
 import numpy as np
 
 from optimizer.optimization import Optimizer
+from optimizer.production import MeritOrderModel, LinearCostModel
 from optimizer.utils import datetime_to_str
 
 from datetime import timedelta
 
 from glob import glob
 from os.path import join as opj
+
+from matplotlib import pyplot as plt
 
 
 def retrieve_ranges(df, length):
@@ -44,35 +47,67 @@ idx = pd.date_range(
 
 carbon_intensity = carbon_intensity.reindex(idx, fill_value=np.nan)
 
-CHARGE_TIME = 1
-MAX_TIMES = [12, 24, 30, 36, 48]
+# CHARGE_TIME = 1
+MAX_TIMES = [46, 24, 30, 36]
 
+n = 0
 for max_time in MAX_TIMES:
+    charge_time = int(max_time / 2)
     ranges = retrieve_ranges(carbon_intensity, max_time)
+
     total_gains = 0
+    total_linear_gains = 0
     total_optimum_gains = 0
+    total_baseline = 0
 
     for range in ranges:
         start = datetime_to_str(range.index.min())
         end = datetime_to_str(range.index.min() + timedelta(days=2))
+
+        print(start, end)
+
+        ticks = pd.date_range(start, end, freq="1H")[:-1]
         ci = np.append(range["carbonIntensity"], [0] * (48 - max_time))
 
         baseline_command = np.zeros(48)
-        baseline_command[:CHARGE_TIME] = 1
+        baseline_command[:charge_time] = 1
         baseline_emissions = np.dot(ci, baseline_command)
 
         optimum = Optimizer()
-        optimum_command = optimum.optimize(CHARGE_TIME, max_time, start, end, ci)
+        optimum_command = optimum.optimize(charge_time, max_time, start, end, ci)
         optimum_emissions = np.dot(ci, optimum_command)
 
-        model_optimum = Optimizer()
-        model_command = model_optimum.optimize(CHARGE_TIME, max_time, start, end)
+        model_optimum = Optimizer(model=MeritOrderModel)
+        model_command = model_optimum.optimize(charge_time, max_time, start, end)
         model_emissions = np.dot(ci, model_command)
 
+        linear_model_optimum = Optimizer(model=LinearCostModel)
+        linear_model_command = linear_model_optimum.optimize(
+            charge_time, max_time, start, end
+        )
+        linear_model_emissions = np.dot(ci, linear_model_command)
+
+        linear_pred = linear_model_optimum.model.dispatch(start, end)
+
         print(baseline_emissions - model_emissions)
+        print(baseline_emissions - linear_model_emissions)
         print(baseline_emissions - optimum_emissions)
 
+        total_baseline += baseline_emissions
         total_gains += baseline_emissions - model_emissions
         total_optimum_gains += baseline_emissions - optimum_emissions
 
-    print(max_time, total_gains / total_optimum_gains)
+        fig, ax = plt.subplots()
+        left_ax, right_ax = model_optimum.model.plot(start, end, ax)
+        right_ax.plot(np.arange(max_time), ci[:max_time], label="baseline", color="red")
+        fig.legend(bbox_to_anchor=(0.98, 0.9), loc="upper left")
+        fig.savefig(f"output/validation_{n}.png", bbox_inches="tight")
+
+        fig, ax = plt.subplots()
+        left_ax, right_ax = linear_model_optimum.model.plot(start, end, ax)
+        right_ax.plot(np.arange(max_time), ci[:max_time], label="baseline", color="red")
+        fig.legend(bbox_to_anchor=(0.98, 0.9), loc="upper left")
+        fig.savefig(f"output/validation_{n}_linear.png", bbox_inches="tight")
+
+        n += 1
+    # print(max_time, total_gains / total_baseline, total_optimum_gains / total_baseline)
