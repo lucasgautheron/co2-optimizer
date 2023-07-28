@@ -99,7 +99,7 @@ class PowerSource(ABC):
 
                 for i in range(len(t_begin)):
                     units[unit][t_begin[i] : t_end[i]] = np.maximum(
-                        units[unit][t_begin[i]:t_end[i]], values[i]
+                        units[unit][t_begin[i] : t_end[i]], values[i]
                     )
 
         return units
@@ -144,22 +144,6 @@ class PowerSource(ABC):
             )
             try:
                 forecasts = res.json()["forecasts"]
-            except:
-                print(f"no forecast found (future)")
-
-            start_rq = datetime_to_str(
-                start_dtime.replace(hour=0, minute=0, second=0) + timedelta(days=1)
-            )
-            end_rq = datetime_to_str(
-                start_dtime.replace(hour=0, minute=0, second=0) + timedelta(days=3)
-            )
-
-            res = api.request(
-                f"http://digital.iservices.rte-france.com/open_api/generation_forecast/v2/forecasts?production_type={production_type}&start_date={start_rq}&end_date={end_rq}",
-                cache_expiration=datetime_to_str(start_hour + timedelta(hours=1)),
-            )
-            try:
-                forecasts += res.json()["forecasts"]
             except:
                 print(f"no forecast found (future)")
         else:
@@ -332,6 +316,25 @@ class CoalPower(PowerSource):
         return availability
 
 
+class OilPower(PowerSource):
+    def __init__(self):
+        super().__init__()
+
+    def get_availability(self, start, end):
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
+        n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
+        availability = [self.installed_capacity] * n_bins
+
+        units_unavailabilities = self.retrieve_unavailabilities(
+            "FOSSIL_OIL", start, end
+        )
+
+        for unit in units_unavailabilities:
+            availability -= units_unavailabilities[unit]
+
+        return availability
+
 class BiomassPower(PowerSource):
     def __init__(self):
         super().__init__()
@@ -396,7 +399,21 @@ class StoredHydroPower(PowerSource):
         super().__init__()
 
     def get_availability(self, start, end):
-        return super().get_availability(start, end)
+        start_dtime = str_to_datetime(start)
+        end_dtime = str_to_datetime(end)
+        n_bins = int((end_dtime - start_dtime).total_seconds() / 3600)
+        availability = [self.installed_capacity] * n_bins
+
+        units_unavailabilities = self.retrieve_unavailabilities(
+            self.rte_production_type,
+            start,
+            end,
+        )
+
+        for unit in units_unavailabilities:
+            availability -= units_unavailabilities[unit]
+
+        return availability
 
 
 class ImportedPower(PowerSource):
@@ -417,8 +434,8 @@ class ImportedPower(PowerSource):
 
         n_bins = int((end_dt - start_dt).total_seconds() / 3600)
 
-        production = np.zeros(n_bins)
-        data_points = np.zeros(n_bins)
+        exchanges = np.zeros((2, n_bins))
+        data_points = np.zeros((2, n_bins))
 
         periods = pd.date_range(start=start_dt, end=end_dt, freq="2W")
         if len(periods) <= 1:
@@ -449,16 +466,14 @@ class ImportedPower(PowerSource):
             for row in data:
                 sender = row["sender_country_name"]
                 receiver = row["receiver_country_name"]
-                sign = 1 if receiver == "France" else -1
 
                 t_begin, t_end, values = RTEAPI.values_hist(
                     row["values"], start_dt, end_dt
                 )
-                values *= sign
 
                 for i in range(len(t_begin)):
-                    production[t_begin[i] : t_end[i]] += values[i]
-                    data_points[t_begin[i] : t_end[i]] += 1
+                    is_export = 0 if receiver == "France" else 1
+                    exchanges[is_export, t_begin[i] : t_end[i]] += values[i]
+                    data_points[is_export, t_begin[i] : t_end[i]] += 1
 
-        production /= data_points
-        return production
+        return exchanges / data_points

@@ -7,6 +7,7 @@ from .sources import (
     NuclearPower,
     GasPower,
     CoalPower,
+    OilPower,
     BiomassPower,
     HydroPower,
     StoredHydroPower,
@@ -25,8 +26,10 @@ class Optimizer:
             NuclearPower(),
             GasPower(),
             CoalPower(),
+            OilPower(),
             BiomassPower(),
             ReservoirHydroPower(),
+            StoredHydroPower(),
             ImportedPower(),
         ]
 

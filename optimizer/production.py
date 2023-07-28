@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from itertools import product
 
 import cvxpy as cp
 import numpy as np
@@ -161,20 +162,26 @@ class LinearCostModel(ProductionModel):
         self.T = 48
 
     def solve(x, c, theta):
-        theta = c * theta
-
         n_sources = x.shape[1] - 1
+        theta = theta * c
+
         pred = cp.Variable((x.shape[0], n_sources))
 
         constraints = [
             pred >= 0,  # production must be positive
             pred <= x[:, :n_sources] / 1000,  # prod < avail
-            cp.sum(pred, axis=1)
-            >= x[:, n_sources] / 1000,  # total production must meet demand at any time,
+            cp.sum(pred, axis=1) >= x[:, n_sources] / 1000,  # production >= demand,
         ]
 
         prob = cp.Problem(
-            cp.Minimize(cp.sum(pred @ c + cp.square(pred) @ theta)),
+            cp.Minimize(
+                cp.sum(
+                    pred @ c + cp.square(pred) @ theta
+                )  # production costs
+                # + cp.sum(
+                #     cp.maximum(cp.diff(pred, axis=0), 0) @ theta[n_sources:]
+                # )  # activation costs
+            ),
             constraints,
         )
 
@@ -191,7 +198,7 @@ class LinearCostModel(ProductionModel):
             / pred.shape[0]
             / pred.shape[1]
         )
-        print(c * theta)
+        print(theta)
         print(loss)
         return loss
 
@@ -203,9 +210,14 @@ class LinearCostModel(ProductionModel):
         end_dt = str_to_datetime(end)
         n_bins = int((end_dt - start_dt).total_seconds() / 3600)
 
-        production_history = np.array(
-            [source.get_production(start, end) for source in self.sources]
-        )
+        production_history = [
+            source.get_production(start, end) for source in self.sources
+        ]
+
+        imports = production_history[-1][0, :]
+        exports = production_history[-1][1, :]
+        production_history[-1] = imports
+        production_history = np.array(production_history)
 
         availability = np.array(
             [source.get_availability(start, end) for source in self.sources]
@@ -215,9 +227,7 @@ class LinearCostModel(ProductionModel):
 
         X = np.zeros((n_bins, 2 * n_sources + 1))
         X[:, :n_sources] = availability.T
-        X[:, n_sources] = consumption.T - np.minimum(
-            0, production_history.T[:, -1]
-        )  # production + imports = consumption + exports
+        X[:, n_sources] = consumption.T + exports
         X[:, n_sources + 1 :] = np.maximum(0, production_history.T)
         X[:, n_sources + 1 :] = np.minimum(availability.T, production_history.T)
 
@@ -236,18 +246,25 @@ class LinearCostModel(ProductionModel):
 
         from functools import partial
 
+        theta0 = np.zeros(n_sources)
         theta0 = np.random.uniform(0, 1, n_sources)
-        theta0[:3] = 0
+        theta0[marginal_cost == 0] = 0
 
         res = minimize(
             partial(LinearCostModel.objective, X, marginal_cost),
             theta0,
             method="SLSQP",
-            bounds=[(0, 1)] * n_sources,
+            bounds=[(0, 10)] * n_sources,
         )
 
         theta = res.x
         np.save("data/theta.npy", theta)
+        theta = np.load("data/theta.npy")
+
+        prediction = LinearCostModel.solve(X[:, : n_sources + 1], marginal_cost, theta)
+        truth = X[:, n_sources + 1 :]
+
+        return prediction.T, truth.T
 
     def save(self):
         pass

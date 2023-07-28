@@ -20,6 +20,12 @@ CoalPower:
   installed_capacity: 1820
   color: "#B89E55"
   rte_production_type: FOSSIL_HARD_COAL
+OilPower:
+  carbon_intensity: 1014
+  marginal_cost: 110
+  installed_capacity: 2890
+  color: "#999280"
+  rte_production_type: FOSSIL_OIL
 BiomassPower:
   carbon_intensity: 230
   marginal_cost: 70
@@ -48,9 +54,10 @@ StoredHydroPower:
   carbon_intensity: 67
   marginal_cost: 100
   installed_capacity: 5064
+  color: "#4585EE"
   rte_production_type: HYDRO_PUMPED_STORAGE
 ImportedPower:
   carbon_intensity: 200
-  marginal_cost: 1000
+  marginal_cost: 100
   installed_capacity: 30000
   color: "gray"
