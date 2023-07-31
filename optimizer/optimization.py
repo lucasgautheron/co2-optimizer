@@ -19,21 +19,7 @@ from .production import MeritOrderModel
 
 class Optimizer:
     def __init__(self, model=MeritOrderModel):
-        self.sources = [
-            WindPower(),
-            SolarPower(),
-            HydroPower(),
-            NuclearPower(),
-            GasPower(),
-            CoalPower(),
-            OilPower(),
-            BiomassPower(),
-            ReservoirHydroPower(),
-            StoredHydroPower(),
-            ImportedPower(),
-        ]
-
-        self.model = model(self.sources)
+        self.model = model()
 
     def optimize(self, min_time, max_time, start=None, end=None, carbon_intensity=None):
         production = self.model.dispatch(start, end)

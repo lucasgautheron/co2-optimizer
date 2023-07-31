@@ -43,6 +43,21 @@ class PowerSource(ABC):
         if "color" in data[name]:
             self.color = data[name]["color"]
 
+        if "rampup_scale" in data[name]:
+            self.rampup_scale = data[name]["rampup_scale"]
+        else:
+            self.rampup_scale = 0
+
+        if "min_load" in data[name]:
+            self.min_load = data[name]["min_load"]
+        else:
+            self.min_load = 0
+
+        if "min_unit_load" in data[name]:
+            self.min_unit_load = data[name]["min_unit_load"]
+        else:
+            self.min_unit_load = 0
+
     @abstractmethod
     def get_availability(self, start, end):
         pass
@@ -334,6 +349,7 @@ class OilPower(PowerSource):
             availability -= units_unavailabilities[unit]
 
         return availability
+
 
 class BiomassPower(PowerSource):
     def __init__(self):

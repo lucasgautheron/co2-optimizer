@@ -5,6 +5,7 @@ import cvxpy as cp
 import numpy as np
 from scipy.optimize import minimize
 
+from .sources import *
 from .resources import RTEAPI
 
 from .utils import str_to_datetime, datetime_to_str, interp
@@ -119,8 +120,20 @@ class ProductionModel(ABC):
 
 
 class MeritOrderModel(ProductionModel):
-    def __init__(self, sources: list):
-        self.sources = sources
+    def __init__(self):
+        self.sources = [
+            WindPower(),
+            SolarPower(),
+            HydroPower(),
+            NuclearPower(),
+            GasPower(),
+            CoalPower(),
+            OilPower(),
+            BiomassPower(),
+            ReservoirHydroPower(),
+            StoredHydroPower(),
+            ImportedPower(),
+        ]
 
     def dispatch(self, start, end):
         consumption = self.get_consumption(start, end)
@@ -157,41 +170,77 @@ class MeritOrderModel(ProductionModel):
 
 
 class LinearCostModel(ProductionModel):
-    def __init__(self, sources: list):
-        self.sources = sources
+    def __init__(self):
+        self.sources = [
+            WindPower(),
+            SolarPower(),
+            HydroPower(),
+            NuclearPower(),
+            GasPower(),
+            CoalPower(),
+            OilPower(),
+            BiomassPower(),
+            ReservoirHydroPower(),
+            StoredHydroPower(),
+            ImportedPower(),
+        ]
         self.T = 48
 
-    def solve(x, c, theta):
+    def solve(x, c, min_load, theta):
         n_sources = x.shape[1] - 1
-        theta = theta * c
+
+        linear_costs = theta[:n_sources] * c
+
+        units_min_prod = np.zeros((n_sources, n_sources))
+        np.fill_diagonal(units_min_prod, theta[n_sources : 2 * n_sources])
+        units_rampup_costs = theta[2 * n_sources :] * c
 
         pred = cp.Variable((x.shape[0], n_sources))
+        activ = cp.Variable((x.shape[0], n_sources))
 
         constraints = [
-            pred >= 0,  # production must be positive
-            pred <= x[:, :n_sources] / 1000,  # prod < avail
+            activ >= 0,
+            activ <= 1,
+            # pred >= cp.multiply(activ, x[:, :n_sources] / 1000) @ units_min_prod,
+            pred <= cp.multiply(activ, x[:, :n_sources] / 1000),  # prod < avail
             cp.sum(pred, axis=1) >= x[:, n_sources] / 1000,  # production >= demand,
         ]
 
+        constraints += [
+            pred[:, i]
+            >= cp.multiply(activ[:, i], x[:, i] / 1000) * units_min_prod[i, i]
+            for i in range(n_sources)
+        ]
+
+        constraints += [
+            pred[:, i] >= x[:, i] / 1000 * min_load[i] for i in range(n_sources)
+        ]
+
+        # constraints += [
+        #     cp.max(cp.pos(cp.diff(activ, axis=0)), axis=0) <= units_max_rampup
+        # ]
+
         prob = cp.Problem(
             cp.Minimize(
-                cp.sum(
-                    pred @ c + cp.square(pred) @ theta
-                )  # production costs
-                # + cp.sum(
-                #     cp.maximum(cp.diff(pred, axis=0), 0) @ theta[n_sources:]
-                # )  # activation costs
+                cp.sum(pred @ c + cp.square(pred) @ linear_costs)  # production costs
+                + cp.sum(
+                    cp.pos(cp.diff(activ, axis=0)) @ units_rampup_costs
+                )  # activation costs
             ),
             constraints,
         )
 
-        # prob.solve(solver="SCS", verbose=True)
-        prob.solve()
-        return 1000 * pred.value
+        try:
+            prob.solve(solver="ECOS", verbose=True)
+            # prob.solve()
+            pred = pred.value
+        except:
+            pred = np.zeros((x.shape[0], n_sources))
+        return 1000 * pred
 
-    def objective(x, c, theta):
+    def objective(x, c, min_load, theta):
         n_sources = int((x.shape[1] - 1) / 2)
-        pred = LinearCostModel.solve(x[:, : n_sources + 1], c, theta)
+        pred = LinearCostModel.solve(x[:, : n_sources + 1], c, min_load, theta)
 
         loss = (
             np.sum((pred / 1000 - x[:, n_sources + 1 :] / 1000) ** 2)
@@ -200,6 +249,10 @@ class LinearCostModel(ProductionModel):
         )
         print(theta)
         print(loss)
+
+        print(pred.mean(axis=0) / 1000)
+        print(x[:, n_sources + 1 :].mean(axis=0) / 1000)
+
         return loss
 
     def train(self, start, end):
@@ -224,12 +277,13 @@ class LinearCostModel(ProductionModel):
         )
 
         marginal_cost = np.array([source.marginal_cost for source in self.sources])
+        min_load = np.array([source.min_load for source in self.sources])
 
         X = np.zeros((n_bins, 2 * n_sources + 1))
         X[:, :n_sources] = availability.T
         X[:, n_sources] = consumption.T + exports
         X[:, n_sources + 1 :] = np.maximum(0, production_history.T)
-        X[:, n_sources + 1 :] = np.minimum(availability.T, production_history.T)
+        X[:, n_sources + 1 :] = np.minimum(availability.T, X[:, n_sources + 1 :])
 
         X[:, :3] = production_history.T[:, :3]
         X[:, n_sources + 1 : n_sources + 1 + 3] = production_history.T[:, :3]
@@ -238,33 +292,52 @@ class LinearCostModel(ProductionModel):
 
         for k in range(n_sources):
             plt.clf()
-            plt.plot(X[:, k + n_sources + 1] / X[:, k])
-            plt.ylim(0, 1.25)
-            plt.savefig(f"output/train_{self.sources[k].__class__.__name__}.png")
+            plt.plot(X[:, k + n_sources + 1] / X[:, k], lw=0.25)
+            plt.ylim(-0.1, 1.1)
+            plt.title(self.sources[k].__class__.__name__)
+            plt.ylabel("Production / Available Capacity")
+            plt.xlabel("Time (Hours)")
+            plt.savefig(
+                f"output/train_{self.sources[k].__class__.__name__}.png", dpi=720
+            )
 
         X = X[~np.isnan(X).any(axis=1)]
 
         from functools import partial
 
-        theta0 = np.zeros(n_sources)
-        theta0 = np.random.uniform(0, 1, n_sources)
-        theta0[marginal_cost == 0] = 0
+        theta0 = np.zeros(3 * n_sources)
 
-        res = minimize(
-            partial(LinearCostModel.objective, X, marginal_cost),
-            theta0,
-            method="SLSQP",
-            bounds=[(0, 10)] * n_sources,
+        # marginal cost increase / added GW
+        theta0[:n_sources] = np.random.uniform(0, 1, n_sources)
+        theta0[:n_sources][marginal_cost == 0] = 0
+
+        # minimum unit load-factor
+        theta0[n_sources : 2 * n_sources] = np.array(
+            [source.min_unit_load for source in self.sources]
         )
 
-        theta = res.x
-        np.save("data/theta.npy", theta)
+        # ramp-up costs
+        theta0[2 * n_sources :] = np.array(
+            [source.rampup_scale for source in self.sources]
+        )
+
+        # res = minimize(
+        #     partial(LinearCostModel.objective, X, marginal_cost, min_load),
+        #     theta0,
+        #     method="SLSQP",
+        #     bounds=[(0, 2)] * n_sources
+        #     + [(0, 1)] * n_sources
+        #     + [(0, 24 * 2)] * n_sources,
+        # )
+
+        # theta = res.x
+        # np.save("data/theta.npy", theta)
         theta = np.load("data/theta.npy")
 
-        prediction = LinearCostModel.solve(X[:, : n_sources + 1], marginal_cost, theta)
-        truth = X[:, n_sources + 1 :]
-
-        return prediction.T, truth.T
+        prediction = LinearCostModel.solve(
+            X[:, : n_sources + 1], marginal_cost, min_load, theta
+        )
+        return X, prediction
 
     def save(self):
         pass
@@ -286,7 +359,8 @@ class LinearCostModel(ProductionModel):
         X[:, -1] = consumption.T
 
         marginal_cost = np.array([source.marginal_cost for source in self.sources])
+        min_load = np.array([source.min_load for source in self.sources])
 
         theta = np.load("data/theta.npy")
 
-        return LinearCostModel.solve(X, marginal_cost, theta).T
+        return LinearCostModel.solve(X, marginal_cost, min_load, theta).T
