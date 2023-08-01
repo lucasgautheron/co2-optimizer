@@ -258,16 +258,6 @@ class LinearCostModel(ProductionModel):
             prob.solve(solver="ECOS", verbose=True)
             # prob.solve()
             pred = pred.value
-            store = store.value
-
-            sign = np.multiply(store, pred[:, storage_capacity > 0]) > 0.001
-            print(
-                store.sum(),
-                pred[:, storage_capacity > 0].sum(),
-                store.min(),
-                store.max(),
-                sign.mean(),
-            )
         except:
             pred = np.zeros((x.shape[0], n_sources))
         return 1000 * pred
@@ -374,23 +364,23 @@ class LinearCostModel(ProductionModel):
             ]
         )
 
-        theta0 = np.load("data/theta.npy")[list(parametrize) * 3]
+        theta0 = np.load("data/theta.npy")
         theta = theta0
 
-        # res = minimize(
-        #     partial(
-        #         LinearCostModel.objective, X, marginal_cost, min_load, storage_capacity
-        #     ),
-        #     theta0,
-        #     method="SLSQP",
-        #     bounds=[(0, 2)] * n_programmable_sources
-        #     + [(0, 1)] * n_programmable_sources
-        #     + [(0, 24 * 2)] * n_programmable_sources,
-        # )
+        res = minimize(
+            partial(
+                LinearCostModel.objective, X, marginal_cost, min_load, storage_capacity
+            ),
+            theta0,
+            method="SLSQP",
+            bounds=[(0, 2)] * n_param_sources
+            + [(0, 1)] * n_param_sources
+            + [(0, 24 * 2)] * n_param_sources,
+        )
 
-        # theta = res.x
+        theta = res.x
         # np.save("data/theta.npy", theta)
-        # theta = np.load("data/theta.npy")
+        theta = np.load("data/theta.npy")
 
         prediction = LinearCostModel.solve(
             X[:, : n_sources + 1], marginal_cost, min_load, storage_capacity, theta
