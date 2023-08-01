@@ -58,6 +58,10 @@ class PowerSource(ABC):
         else:
             self.min_unit_load = 0
 
+        self.storage_capacity = (
+            data[name]["storage_capacity"] if "storage_capacity" in data[name] else 0
+        )
+
     @abstractmethod
     def get_availability(self, start, end):
         pass

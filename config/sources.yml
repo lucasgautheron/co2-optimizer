@@ -46,11 +46,13 @@ BiomassPower:
   carbon_intensity: 230
   marginal_cost: 70
   installed_capacity: 2230
+  # installed_capacity: 446
   color: "green"
   rte_production_type: BIOMASS
   rampup_scale: 24
   min_unit_load: 0.1
   min_load: 0.1
+  # min_load: 0.6
 NuclearPower:
   carbon_intensity: 5
   marginal_cost: 10
@@ -80,13 +82,15 @@ ReservoirHydroPower:
   min_load: 0
 StoredHydroPower:
   carbon_intensity: 67
-  marginal_cost: 100
+  marginal_cost: 10
   installed_capacity: 5064
-  color: "#4585EE"
+  color: "#3040CC"
   rte_production_type: HYDRO_PUMPED_STORAGE
   rampup_scale: 0
   min_unit_load: 0
   min_load: 0
+  storage: true
+  storage_capacity: 103500
 ImportedPower:
   carbon_intensity: 200
   marginal_cost: 100

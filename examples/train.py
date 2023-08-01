@@ -111,18 +111,41 @@ ax.set_xlabel("time")
 fig.legend()
 fig.savefig(f"output/ci.png", bbox_inches="tight", dpi=720)
 
+n = sum([1 for source in model.sources if source.min_load < 1])
+nrows = int((n + 1) // 2)
+fig, axes = plt.subplots(
+    nrows=nrows, ncols=2, sharex=True, sharey=True, figsize=(2 * 6.4, 4.8 * nrows)
+)
+
+n = 0
 for k, source in enumerate(model.sources):
+    if source.min_load == 1:
+        continue
+
+    col = n % 2
+    row = n // 2
+    ax = axes[row, col]
+
     pred = prediction[k] / X[:, k]
     obs = X[:, k + n_sources + 1] / X[:, k]
     nan = np.isnan(pred) | np.isnan(obs)
 
     R = pearsonr(pred[~nan], obs[~nan]).statistic
-    fig, ax = plt.subplots()
-    ax.plot(pred, lw=0.25, label=f"model (R={R:.2f})")
+
+    ax.plot(pred, lw=0.25, label=f"model")
     ax.plot(obs, lw=0.25, label="truth")
-    ax.set_ylim(-0.1, 1.1)
-    ax.set_title(source.__class__.__name__)
-    ax.set_ylabel("Production / Available Capacity")
-    ax.set_xlabel("Time (Hours)")
-    fig.legend()
-    fig.savefig(f"output/train_predict_{source.__class__.__name__}.png", dpi=720)
+    ax.set_ylim(-0.05, 1.1)
+    ax.set_title(f"{source.__class__.__name__} (R={R:.2f})", y=1.0, pad=-14)
+
+    if col == 0 and row == 0:
+        ax.set_ylabel("Production / Available Capacity")
+
+    if col == 0 and row == nrows - 1:
+        ax.set_xlabel("Time (Hours)")
+
+    n += 1
+
+fig.legend(["model", "truth"], bbox_to_anchor=[0.95, 0.05], loc="right", ncol=2)
+plt.subplots_adjust(wspace=0, hspace=0)
+fig.savefig(f"output/train_predict.png", bbox_inches="tight", dpi=360)
+fig.savefig(f"output/train_predict.eps", bbox_inches="tight")
