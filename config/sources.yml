@@ -3,61 +3,99 @@ SolarPower:
   marginal_cost: 0
   color: "#EE8845"
   rte_production_type: SOLAR
+  rampup_scale: 0
+  min_unit_load: 0
+  min_load: 1
 WindPower:
   carbon_intensity: 13
   marginal_cost: 0
   color: "#86D2C2"
   rte_production_type: WIND_ONSHORE
+  rampup_scale: 0
+  min_unit_load: 0
+  min_load: 1
 GasPower:
   carbon_intensity: 501
   marginal_cost: 80
   installed_capacity: 12800
   color: "#BF486D"
   rte_production_type: FOSSIL_GAS
+  rampup_scale: 24
+  min_unit_load: 0.1
+  min_load: 0.2
 CoalPower:
   carbon_intensity: 954
   marginal_cost: 90
   installed_capacity: 1820
   color: "#B89E55"
   rte_production_type: FOSSIL_HARD_COAL
+  rampup_scale: 0
+  rampup_scale: 48
+  min_unit_load: 0.5
+  min_load: 0
 OilPower:
   carbon_intensity: 1014
   marginal_cost: 110
   installed_capacity: 2890
   color: "#999280"
   rte_production_type: FOSSIL_OIL
+  rampup_scale: 24
+  min_unit_load: 0.05
+  min_load: 0.05
 BiomassPower:
   carbon_intensity: 230
   marginal_cost: 70
   installed_capacity: 2230
+  # installed_capacity: 446
   color: "green"
   rte_production_type: BIOMASS
+  rampup_scale: 24
+  min_unit_load: 0.1
+  min_load: 0.1
+  # min_load: 0.6
 NuclearPower:
   carbon_intensity: 5
   marginal_cost: 10
   installed_capacity: 61400
   color: "#BAC039"
   rte_production_type: NUCLEAR
+  rampup_scale: 4
+  min_unit_load: 0.1
+  min_load: 0
 HydroPower:
   carbon_intensity: 11
   marginal_cost: 0
   color: "#4585B8"
   installed_capacity: 11514
   rte_production_type: HYDRO_RUN_OF_RIVER_AND_POUNDAGE
+  rampup_scale: 0
+  min_unit_load: 0
+  min_load: 1
 ReservoirHydroPower:
   carbon_intensity: 11
   marginal_cost: 85
   installed_capacity: 8787
   color: "#4585EE"
   rte_production_type: HYDRO_WATER_RESERVOIR
+  rampup_scale: 0
+  min_unit_load: 0
+  min_load: 0
 StoredHydroPower:
   carbon_intensity: 67
-  marginal_cost: 100
+  marginal_cost: 10
   installed_capacity: 5064
-  color: "#4585EE"
+  color: "#3040CC"
   rte_production_type: HYDRO_PUMPED_STORAGE
+  rampup_scale: 0
+  min_unit_load: 0
+  min_load: 0
+  storage: true
+  storage_capacity: 103500
 ImportedPower:
   carbon_intensity: 200
   marginal_cost: 100
-  installed_capacity: 30000
+  installed_capacity: 20000
   color: "gray"
+  rampup_scale: 0
+  min_unit_load: 0
+  min_load: 0
